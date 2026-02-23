@@ -1,6 +1,6 @@
 Welcome, thank you for considering contribution!
 ---
-It's pretty simple create a Fork, Make the proposed changes and push it! 
+It's pretty simple create a Fork, make the proposed changes and push it! 
 
 If the changes seem appropriate/valid they will be accepted.
 
