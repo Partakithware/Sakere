@@ -5,6 +5,8 @@ If you pitch in please add yourself to the Contributors.md!
 
 As of today the issues section, also has some need-to-do's/wants.
 
+You can get a slight feel at [Display-site](https://sakere-mc.web.app/) which looks like a blank library.
+
 Default Theme
 ---
 ![Image](./screenshots/1.png)
