@@ -1,4 +1,4 @@
-# Sakere (We can change the name?)
+# Sakere
 ---
 Feel free & please pitch in what you can to improve it! The more the merrier!
 If you pitch in please add yourself to the Contributors.md!
