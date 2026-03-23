@@ -54,6 +54,9 @@ def save_settings(data: dict):
 class SettingsUpdate(BaseModel):
     tmdb_api_key: Optional[str] = None
     theme: Optional[dict] = None
+    transcode_preset: Optional[str] = None    # ultrafast → slow
+    transcode_crf: Optional[int] = None       # 0–51, lower = better quality
+    transcode_audio_bitrate: Optional[str] = None  # e.g. "128k", "192k", "256k", "320k"
 
 
 class LibraryPathCreate(BaseModel):
@@ -130,6 +133,16 @@ def show_to_dict(s: TVShow, db: Session) -> dict:
     }
 
 
+def transcode_settings() -> dict:
+    """Return current transcoding settings with safe defaults."""
+    s = load_settings()
+    return {
+        "video_preset":   s.get("transcode_preset", "fast"),
+        "video_crf":      int(s.get("transcode_crf", 22)),
+        "audio_bitrate":  s.get("transcode_audio_bitrate", "192k"),
+    }
+
+
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -159,6 +172,12 @@ async def update_settings(body: SettingsUpdate):
         settings["tmdb_api_key"] = body.tmdb_api_key
     if body.theme is not None:
         settings["theme"] = body.theme
+    if body.transcode_preset is not None:
+        settings["transcode_preset"] = body.transcode_preset
+    if body.transcode_crf is not None:
+        settings["transcode_crf"] = int(body.transcode_crf)
+    if body.transcode_audio_bitrate is not None:
+        settings["transcode_audio_bitrate"] = body.transcode_audio_bitrate
     save_settings(settings)
     return {"ok": True}
 
@@ -358,10 +377,12 @@ async def remux_movie(movie_id: int, request: Request, seek: float = 0,
     m = db.query(Movie).filter(Movie.id == movie_id).first()
     if not m:
         raise HTTPException(status_code=404)
+    ts = transcode_settings()
     return await stream_remux(m.file_path, seek=seek, audio_idx=audio_idx,
                               video_idx=video_idx, sub_idx=sub_idx,
                               sub_is_image=sub_is_image, force_transcode=bool(transcode),
-                              range_header=request.headers.get("range"))
+                              range_header=request.headers.get("range"),
+                              **ts)
 
 
 @app.get("/api/stream/episode/{ep_id}/remux")
@@ -373,10 +394,12 @@ async def remux_episode(ep_id: int, request: Request, seek: float = 0,
     ep = db.query(Episode).filter(Episode.id == ep_id).first()
     if not ep:
         raise HTTPException(status_code=404)
+    ts = transcode_settings()
     return await stream_remux(ep.file_path, seek=seek, audio_idx=audio_idx,
                               video_idx=video_idx, sub_idx=sub_idx,
                               sub_is_image=sub_is_image, force_transcode=bool(transcode),
-                              range_header=request.headers.get("range"))
+                              range_header=request.headers.get("range"),
+                              **ts)
 
 
 @app.get("/api/tracks/movie/{movie_id}")
@@ -573,3 +596,24 @@ async def continue_watching(db: Session = Depends(get_db)):
         })
     result.sort(key=lambda x: x.get("last_watched") or "", reverse=True)
     return result
+
+
+@app.delete("/api/continue-watching/{media_type}/{item_id}")
+async def remove_from_continue_watching(media_type: str, item_id: int, db: Session = Depends(get_db)):
+    """Reset watch progress to 0, removing the item from the Continue Watching row."""
+    if media_type == "movie":
+        m = db.query(Movie).filter(Movie.id == item_id).first()
+        if not m:
+            raise HTTPException(status_code=404)
+        m.watch_progress = 0.0
+        m.last_watched = None
+    elif media_type == "episode":
+        ep = db.query(Episode).filter(Episode.id == item_id).first()
+        if not ep:
+            raise HTTPException(status_code=404)
+        ep.watch_progress = 0.0
+        ep.last_watched = None
+    else:
+        raise HTTPException(status_code=400, detail="media_type must be 'movie' or 'episode'")
+    db.commit()
+    return {"ok": True}
