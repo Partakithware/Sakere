@@ -175,7 +175,10 @@ async def stream_remux(file_path: str, seek: float = 0,
                        audio_idx: int = 0, video_idx: int = 0,
                        sub_idx: int = -1, sub_is_image: bool = False,
                        force_transcode: bool = False,
-                       range_header: str = None) -> StreamingResponse:
+                       range_header: str = None,
+                       video_preset: str = "fast",
+                       video_crf: int = 22,
+                       audio_bitrate: str = "192k") -> StreamingResponse:
     """
     Remux to fragmented MP4 via FFmpeg.
 
@@ -192,6 +195,13 @@ async def stream_remux(file_path: str, seek: float = 0,
         raise HTTPException(status_code=404, detail="File not found")
     if not ffmpeg_available():
         raise HTTPException(status_code=500, detail="FFmpeg not installed")
+
+    # Clamp / validate caller-supplied values
+    VALID_PRESETS = {"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower"}
+    if video_preset not in VALID_PRESETS:
+        video_preset = "fast"
+    video_crf = max(0, min(51, int(video_crf)))
+    crf_str   = str(video_crf)
 
     # Auto-detect HEVC — must transcode to H.264 for broad browser compat
     is_hevc = False
@@ -216,21 +226,21 @@ async def stream_remux(file_path: str, seek: float = 0,
     if burn_subs:
         cmd += ["-filter_complex", f"[0:v:{video_idx}][0:s:{sub_idx}]overlay[v]",
                 "-map", "[v]", "-map", f"0:a:{audio_idx}?"]
-        cmd += ["-c:v", "libx264", "-preset", "fast", "-crf", "22"]
+        cmd += ["-c:v", "libx264", "-preset", video_preset, "-crf", crf_str]
     elif sub_idx >= 0 and not sub_is_image:
         cmd += ["-map", f"0:v:{video_idx}", "-map", f"0:a:{audio_idx}?"]
         safe = file_path.replace("\\", "/").replace("'", r"\'").replace(":", r"\:")
-        cmd += ["-c:v", "libx264", "-preset", "fast", "-crf", "22",
+        cmd += ["-c:v", "libx264", "-preset", video_preset, "-crf", crf_str,
                 "-vf", f"subtitles='{safe}':si={sub_idx}"]
     else:
         cmd += ["-map", f"0:v:{video_idx}", "-map", f"0:a:{audio_idx}?"]
         if need_encode:
-            cmd += ["-c:v", "libx264", "-preset", "fast", "-crf", "22"]
+            cmd += ["-c:v", "libx264", "-preset", video_preset, "-crf", crf_str]
         else:
             cmd += ["-c:v", "copy"]
 
     cmd += [
-        "-c:a", "aac", "-b:a", "192k", "-ac", "2",
+        "-c:a", "aac", "-b:a", audio_bitrate, "-ac", "2",
         "-f", "mp4",
         "-movflags", "frag_keyframe+empty_moov+faststart",
         "pipe:1",
