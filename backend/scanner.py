@@ -47,12 +47,20 @@ def extract_file_metadata(file_path: str) -> dict:
                     meta["duration"] = float(track.duration) / 1000.0
             elif track.track_type == "Video":
                 if track.width and track.height:
+                    w = int(track.width)
                     h = int(track.height)
-                    if h >= 2160:   meta["resolution"] = "4K"
-                    elif h >= 1080: meta["resolution"] = "1080p"
-                    elif h >= 720:  meta["resolution"] = "720p"
-                    elif h >= 480:  meta["resolution"] = "480p"
-                    else:           meta["resolution"] = f"{h}p"
+                    # Use width as primary signal to handle widescreen crops correctly.
+                    # A 1920×800 film is a 1080p source; checking only height mis-labels it 720p.
+                    if w >= 3840 or h >= 2160:
+                        meta["resolution"] = "4K"
+                    elif w >= 1920 or h >= 1080:
+                        meta["resolution"] = "1080p"
+                    elif w >= 1280 or h >= 720:
+                        meta["resolution"] = "720p"
+                    elif w >= 720 or h >= 480:
+                        meta["resolution"] = "480p"
+                    else:
+                        meta["resolution"] = f"{h}p"
                 if track.format:
                     meta["video_codec"] = track.format
             elif track.track_type == "Audio":
