@@ -720,11 +720,37 @@ video#player {
 .card-anim:nth-child(8) { animation-delay: 0.32s; }
 
 /* ─── Continue Watching Row ───────────────────────────────────────── */
-.cw-row {
-  display: flex; gap: 16px; overflow-x: auto;
-  padding-bottom: 8px; scrollbar-width: none;
+.cw-carousel {
+  position: relative;
 }
-.cw-row::-webkit-scrollbar { display: none; }
+.cw-track-wrap {
+  overflow: hidden;           /* hides the scrollbar + clips overflow */
+  width: 100%;
+}
+.cw-row {
+  display: flex; gap: 16px;
+  padding-bottom: 8px;
+  /* no overflow-x here — clipped by parent */
+  transition: none;
+}
+/* Arrow buttons */
+.cw-arrow {
+  position: absolute; top: 50%; transform: translateY(-60%);
+  z-index: 10;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 50%;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 16px;
+  transition: background var(--transition), opacity var(--transition);
+  opacity: 0;
+  pointer-events: none;
+}
+.cw-carousel:hover .cw-arrow { opacity: 1; pointer-events: auto; }
+.cw-arrow:hover { background: var(--surface3); }
+.cw-arrow-left  { left: -18px; }
+.cw-arrow-right { right: -18px; }
+.cw-arrow.hidden { opacity: 0 !important; pointer-events: none !important; }
 .cw-card {
   flex-shrink: 0; width: 200px;
   background: var(--surface);
@@ -732,6 +758,7 @@ video#player {
   border-radius: var(--radius-sm);
   overflow: hidden; cursor: pointer;
   transition: all var(--transition);
+  position: relative;   /* for dismiss button */
 }
 .cw-card:hover {
   border-color: rgba(59,130,246,0.3);
@@ -754,6 +781,19 @@ video#player {
 .cw-bar-fill { height: 100%; background: var(--accent); }
 .cw-info { padding: 10px 12px; }
 .cw-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Dismiss (×) button */
+.cw-dismiss {
+  position: absolute; top: 6px; right: 6px;
+  background: rgba(0,0,0,0.65); border: none;
+  color: #fff; border-radius: 50%;
+  width: 22px; height: 22px; line-height: 22px;
+  text-align: center; font-size: 13px;
+  cursor: pointer; display: none;
+  z-index: 5;
+  transition: background var(--transition);
+}
+.cw-dismiss:hover { background: rgba(220,50,50,0.85); }
+.cw-card:hover .cw-dismiss { display: block; }
 
 /* ─── Theme Picker ────────────────────────────────────────────────── */
 .theme-presets { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
@@ -1166,29 +1206,38 @@ async function renderHome() {
 
   let cwHtml = '';
   if (cw && cw.length > 0) {
+    const cards = cw.map(item => {
+      const pct = item.duration ? Math.min(100,(item.watch_progress/item.duration)*100) : 0;
+      const mediaType = item.type === 'episode' ? 'episode' : 'movie';
+      const clickHandler = item.type === 'episode'
+        ? `openMedia('episode', ${item.id}, ${item.watch_progress||0}, ${!!item.needs_remux}, ${item.duration||0})`
+        : item.type === 'movie'
+          ? `playMedia('movie', ${item.id}, '${jsStr(item.title)}', ${!!item.needs_remux}, ${item.duration||0}, ${item.watch_progress||0})`
+          : `openMedia('${item.type}', ${item.id})`;
+      return `
+        <div class="cw-card" onclick="${clickHandler}">
+          <button class="cw-dismiss" title="Remove from Continue Watching"
+            onclick="event.stopPropagation(); cwRemove('${mediaType}', ${item.id}, this)">✕</button>
+          <div class="cw-thumb">
+            ${item.poster_path ? `<img src="${item.poster_path}" alt="" onerror="this.style.display='none'">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3)">${item.type==='show'||item.type==='episode'?'📺':'🎬'}</div>`}
+            <div class="cw-thumb-overlay">▶</div>
+          </div>
+          <div class="cw-bar"><div class="cw-bar-fill" style="width:${pct}%"></div></div>
+          <div class="cw-info"><div class="cw-title">${escHtml(item.title)}</div></div>
+        </div>`;
+    }).join('');
+
     cwHtml = `
       <div class="section-gap">
         <div class="section-header">
           <div class="section-title">Continue Watching</div>
         </div>
-        <div class="cw-row">
-          ${cw.map(item => {
-            const pct = item.duration ? Math.min(100,(item.watch_progress/item.duration)*100) : 0;
-            const clickHandler = item.type === 'episode'
-              ? `openMedia('episode', ${item.id}, ${item.watch_progress||0}, ${!!item.needs_remux}, ${item.duration||0})`
-              : item.type === 'movie'
-                ? `playMedia('movie', ${item.id}, '${jsStr(item.title)}', ${!!item.needs_remux}, ${item.duration||0}, ${item.watch_progress||0})`
-                : `openMedia('${item.type}', ${item.id})`;
-            return `
-              <div class="cw-card" onclick="${clickHandler}">
-                <div class="cw-thumb">
-                  ${item.poster_path ? `<img src="${item.poster_path}" alt="" onerror="this.style.display='none'">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3)">${item.type==='show'||item.type==='episode'?'📺':'🎬'}</div>`}
-                  <div class="cw-thumb-overlay">▶</div>
-                </div>
-                <div class="cw-bar"><div class="cw-bar-fill" style="width:${pct}%"></div></div>
-                <div class="cw-info"><div class="cw-title">${escHtml(item.title)}</div></div>
-              </div>`;
-          }).join('')}
+        <div class="cw-carousel" id="cw-carousel">
+          <button class="cw-arrow cw-arrow-left" id="cw-prev" onclick="cwScroll(-1)">&#8249;</button>
+          <div class="cw-track-wrap">
+            <div class="cw-row" id="cw-row">${cards}</div>
+          </div>
+          <button class="cw-arrow cw-arrow-right" id="cw-next" onclick="cwScroll(1)">&#8250;</button>
         </div>
       </div>`;
   }
@@ -1208,6 +1257,7 @@ async function renderHome() {
   }
 
   document.getElementById('page-content').innerHTML = heroHtml + cwHtml + recentHtml;
+  if (cwHtml) requestAnimationFrame(cwInit);
 }
 
 // ─── Movies Page ─────────────────────────────────────────────────────
@@ -1290,6 +1340,15 @@ async function renderSettings() {
   const ffmpegStatus = sys?.ffmpeg
     ? `<span style="color:var(--green)">✓ FFmpeg detected — MKV remux enabled</span>`
     : `<span style="color:var(--gold)">⚠ FFmpeg not found — install with: <code style="background:var(--surface3);padding:2px 6px;border-radius:6px">sudo apt install ffmpeg</code></span>`;
+
+  // Transcoding settings (read from saved settings, fall back to defaults)
+  const tc = {
+    preset:       settings?.transcode_preset        || 'fast',
+    crf:          settings?.transcode_crf           ?? 22,
+    audioBitrate: settings?.transcode_audio_bitrate || '192k',
+  };
+  // Sync mutable state object so the save handler always has current values
+  _tcState = { preset: tc.preset, crf: tc.crf, audioBitrate: tc.audioBitrate };
 
   // Build theme section
   const presets = [
@@ -1403,6 +1462,65 @@ async function renderSettings() {
         <p>FFmpeg enables MKV, AVI, and other formats to play in the browser via on-the-fly remux.</p>
       </div>
 
+      <div class="settings-card" id="transcode-card" style="${sys?.ffmpeg ? '' : 'opacity:0.45;pointer-events:none'}">
+        <h3>🎛 Transcoding Settings</h3>
+        <p>Controls FFmpeg when remuxing incompatible files. Changes take effect on the next play.</p>
+
+        <div style="display:grid;gap:20px;margin-top:8px">
+
+          <!-- Video Preset -->
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase">
+              Video Preset <span style="font-weight:400;text-transform:none;color:var(--text3)">(speed vs quality)</span>
+            </label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap" id="preset-btns">
+              ${['ultrafast','superfast','veryfast','faster','fast','medium','slow'].map(p => `
+                <button class="btn ${tc.preset===p?'btn-primary':''}" id="preset-btn-${p}"
+                  style="padding:6px 14px;font-size:12px"
+                  onclick="selectPreset('${p}')">${p}</button>
+              `).join('')}
+            </div>
+            <p style="font-size:11px;color:var(--text3);margin-top:8px">
+              <b>ultrafast / superfast</b> — near-zero CPU overhead, slightly larger file &nbsp;·&nbsp;
+              <b>fast / medium</b> — good balance (default) &nbsp;·&nbsp;
+              <b>slow</b> — best compression, higher CPU
+            </p>
+          </div>
+
+          <!-- CRF slider -->
+          <div>
+            <label style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase">
+              <span>Video Quality (CRF) <span style="font-weight:400;text-transform:none;color:var(--text3)">lower = better</span></span>
+              <span id="crf-val" style="font-size:16px;font-weight:700;color:var(--accent2);min-width:28px;text-align:right">${tc.crf}</span>
+            </label>
+            <input type="range" id="crf-slider" min="0" max="51" value="${tc.crf}"
+              style="width:100%;accent-color:var(--accent)"
+              oninput="document.getElementById('crf-val').textContent=this.value">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:4px">
+              <span>0 — Lossless</span><span>18 — High</span><span>23 — Default</span><span>28 — Low</span><span>51 — Worst</span>
+            </div>
+          </div>
+
+          <!-- Audio bitrate -->
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase">
+              Audio Bitrate (AAC)
+            </label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap" id="audio-btns">
+              ${['96k','128k','192k','256k','320k'].map(b => `
+                <button class="btn ${tc.audioBitrate===b?'btn-primary':''}" id="audio-btn-${b}"
+                  style="padding:6px 14px;font-size:12px"
+                  onclick="selectAudioBitrate('${b}')">${b}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="align-self:flex-start" onclick="saveTranscodeSettings()">
+            💾 Save Transcoding Settings
+          </button>
+        </div>
+      </div>
+
       <div class="settings-card">
         <h3>ℹ About Sakere</h3>
         <p>Sakere v1.0 — Personal media center built with FastAPI, SQLite, pymediainfo, guessit, and TMDB.</p>
@@ -1420,6 +1538,42 @@ async function renderSettings() {
       </div>
     </div>`;
 }
+
+// ─── Transcoding settings helpers ────────────────────────────────────────────
+let _tcState = { preset: 'fast', crf: 22, audioBitrate: '192k' };
+
+function selectPreset(p) {
+  _tcState.preset = p;
+  document.querySelectorAll('#preset-btns .btn').forEach(b => b.classList.remove('btn-primary'));
+  const btn = document.getElementById('preset-btn-' + p);
+  if (btn) btn.classList.add('btn-primary');
+}
+
+function selectAudioBitrate(b) {
+  _tcState.audioBitrate = b;
+  document.querySelectorAll('#audio-btns .btn').forEach(el => el.classList.remove('btn-primary'));
+  const btn = document.getElementById('audio-btn-' + b);
+  if (btn) btn.classList.add('btn-primary');
+}
+
+async function saveTranscodeSettings() {
+  const crf = parseInt(document.getElementById('crf-slider').value);
+  const body = {
+    transcode_preset: _tcState.preset,
+    transcode_crf: crf,
+    transcode_audio_bitrate: _tcState.audioBitrate,
+  };
+  const r = await api('/api/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  if (r?.ok) showToastMsg('✓ Transcoding settings saved!');
+  else showToastMsg('✗ Failed to save settings', true);
+}
+
+// Keep _tcState in sync when the settings page is re-rendered
+const _origRenderSettings = window.renderSettings;
 
 async function saveApiKey() {
   const key = document.getElementById('tmdb-key').value.trim();
@@ -1654,6 +1808,13 @@ function playMedia(type, id, title, remux = false, duration = 0, seekTo = 0,
     url = base;
   }
 
+  // Abort any in-flight fetch on the existing element before we reassign src.
+  // Without this, changing src while the browser is mid-request raises a
+  // DOMException ("fetching process aborted") that rejects the new play() promise.
+  video.pause();
+  video.removeAttribute('src');
+  video.load();   // flushes the media pipeline synchronously
+
   // Wire up events BEFORE setting src so no events are missed
   setupPlayerEvents(video);
 
@@ -1662,8 +1823,11 @@ function playMedia(type, id, title, remux = false, duration = 0, seekTo = 0,
 
   document.getElementById('player-modal').classList.add('open');
   document.body.style.overflow = 'hidden';
-  video.play().catch(() => {
-    document.getElementById('play-pause-btn').textContent = '▶';
+  video.play().catch(err => {
+    // AbortError is expected when the user seeks again before playback starts
+    if (err.name !== 'AbortError') {
+      document.getElementById('play-pause-btn').textContent = '▶';
+    }
   });
 
   // Load track info in background (don't block playback)
@@ -2051,6 +2215,87 @@ function startScanPolling() {
 }
 
 // ─── Toast ───────────────────────────────────────────────────────────
+// ─── Continue Watching carousel ──────────────────────────────────────────────
+let _cwOffset = 0;   // current scroll offset in px
+
+function cwScroll(dir) {
+  const row     = document.getElementById('cw-row');
+  const wrap    = row?.parentElement;
+  if (!row || !wrap) return;
+
+  const CARD_W  = 200 + 16;          // card width + gap
+  const visible = wrap.clientWidth;
+  const total   = row.scrollWidth;
+  const maxOff  = Math.max(0, total - visible);
+
+  _cwOffset = Math.max(0, Math.min(maxOff, _cwOffset + dir * CARD_W * 2));
+  row.style.transform = `translateX(-${_cwOffset}px)`;
+  row.style.transition = 'transform 0.35s cubic-bezier(0.4,0,0.2,1)';
+
+  // Loop: if we've hit either end, jump to the other side after the animation
+  if (_cwOffset >= maxOff && dir > 0) {
+    setTimeout(() => {
+      row.style.transition = 'none';
+      _cwOffset = 0;
+      row.style.transform = 'translateX(0)';
+    }, 370);
+  } else if (_cwOffset === 0 && dir < 0) {
+    // already at start, loop to end
+    setTimeout(() => {
+      row.style.transition = 'none';
+      _cwOffset = maxOff;
+      row.style.transform = `translateX(-${maxOff}px)`;
+    }, 370);
+  }
+
+  cwUpdateArrows();
+}
+
+function cwUpdateArrows() {
+  const row  = document.getElementById('cw-row');
+  const wrap = row?.parentElement;
+  const prev = document.getElementById('cw-prev');
+  const next = document.getElementById('cw-next');
+  if (!row || !wrap || !prev || !next) return;
+  const overflows = row.scrollWidth > wrap.clientWidth + 4;
+  prev.classList.toggle('hidden', !overflows);
+  next.classList.toggle('hidden', !overflows);
+}
+
+async function cwRemove(mediaType, itemId, btn) {
+  const card = btn.closest('.cw-card');
+  if (!card) return;
+
+  // Optimistic remove with a quick fade
+  card.style.transition = 'opacity 0.25s, transform 0.25s';
+  card.style.opacity    = '0';
+  card.style.transform  = 'scale(0.9)';
+
+  await api(`/api/continue-watching/${mediaType}/${itemId}`, { method: 'DELETE' });
+
+  setTimeout(() => {
+    const row = card.parentElement;
+    card.remove();
+    _cwOffset = 0;    // reset scroll so arrows recalculate cleanly
+    if (row) {
+      row.style.transition = 'none';
+      row.style.transform  = 'translateX(0)';
+    }
+    // Hide the whole section if nothing left
+    const carousel = document.getElementById('cw-carousel');
+    if (carousel && !document.querySelector('.cw-card')) {
+      carousel.closest('.section-gap')?.remove();
+    }
+    cwUpdateArrows();
+  }, 260);
+}
+
+// Run once after home page renders to decide whether arrows are needed
+function cwInit() {
+  _cwOffset = 0;
+  cwUpdateArrows();
+}
+
 function showToastMsg(msg, error=false) {
   const t = document.createElement('div');
   t.style.cssText = `position:fixed;top:24px;right:24px;z-index:999;background:${error?'var(--red)':'var(--surface2)'};color:${error?'#fff':'var(--text)'};border:1px solid ${error?'rgba(239,68,68,0.4)':'var(--border)'};border-radius:var(--radius-sm);padding:12px 20px;font-size:14px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.4);animation:slideUp 0.3s ease`;
