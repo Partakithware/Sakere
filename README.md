@@ -105,3 +105,10 @@ sakere/
 ├── run.py           # Entry point
 └── requirements.txt
 ```
+
+## ⚖️ Legal Disclaimer
+
+Sakere is a tool designed for the organization and playback of personal media collections. 
+- **No Media Provided:** Sakere does not provide, host, or distribute any media content. 
+- **User Responsibility:** Users are solely responsible for ensuring they have the legal right to the content they add to their library.
+- **Compliance:** The developers of Sakere do not condone or support the unauthorized use of copyrighted material.
