@@ -10,7 +10,7 @@ You do not have to explain but it would be appreciated and go quicker.
 
 ## Maintainers: Looking to become prominant? 
 
-A: Create a discord for the community.
+A: Maintain & improve discord for the community. [Discord Invite](https://discord.gg/WKRFdFZSTp)
 
 B: Help manage the project here on github.
 
