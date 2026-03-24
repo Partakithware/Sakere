@@ -1368,8 +1368,8 @@ async function renderSettings() {
 
   // Transcoding settings (read from saved settings, fall back to defaults)
   const tc = {
-    preset:       settings?.transcode_preset        || 'fast',
-    crf:          settings?.transcode_crf           ?? 22,
+    preset:       settings?.transcode_preset        || 'veryfast',
+    crf:          settings?.transcode_crf           ?? 23,
     audioBitrate: settings?.transcode_audio_bitrate || '192k',
   };
   // Sync mutable state object so the save handler always has current values
@@ -1377,12 +1377,13 @@ async function renderSettings() {
 
   // Build theme section
   const presets = [
-    { name: 'Midnight', accent: '#3B82F6', bg: '#06080F', surface: '#0B0F1A', text: '#E2E8F8' },
-    { name: 'Crimson',  accent: '#EF4444', bg: '#0F0608', surface: '#1A090B', text: '#F8E2E4' },
-    { name: 'Emerald',  accent: '#10B981', bg: '#060F09', surface: '#0A1A10', text: '#E2F8EE' },
-    { name: 'Violet',   accent: '#8B5CF6', bg: '#08060F', surface: '#110B1A', text: '#EBE2F8' },
-    { name: 'Amber',    accent: '#F59E0B', bg: '#0F0C06', surface: '#1A1508', text: '#F8F0E2' },
-    { name: 'Rose',     accent: '#F43F5E', bg: '#0F0608', surface: '#1A0B0E', text: '#F8E4E8' },
+    { name: 'Midnight',   accent: '#3B82F6', bg: '#06080F', surface: '#0B0F1A', text: '#E2E8F8' },
+    { name: 'Crimson',    accent: '#EF4444', bg: '#0F0608', surface: '#1A090B', text: '#F8E2E4' },
+    { name: 'Emerald',    accent: '#10B981', bg: '#060F09', surface: '#0A1A10', text: '#E2F8EE' },
+    { name: 'Violet',     accent: '#8B5CF6', bg: '#08060F', surface: '#110B1A', text: '#EBE2F8' },
+    { name: 'Amber',      accent: '#F59E0B', bg: '#0F0C06', surface: '#1A1508', text: '#F8F0E2' },
+    { name: 'Rose',       accent: '#F43F5E', bg: '#0F0608', surface: '#1A0B0E', text: '#F8E4E8' },
+    { name: 'Darkstone',  accent: '#333333', bg: '#141414', surface: '#1E1D20', text: '#EBE2F8' },
   ];
 
   const currentAccent = savedTheme.accent || '#3B82F6';
