@@ -43,10 +43,27 @@ Default Theme (Demo Screenshots from v1.9)
 
 ### 1. Install system dependency
 ```bash
-# linux/deb: sudo apt install mediainfo
-# macOS: brew install mediainfo
-# Windows: https://mediaarea.net/en/MediaInfo/Download
+# Linux (Ubuntu/Debian):
+sudo apt install mediainfo ffmpeg
+
+# Linux (Fedora/RHEL):
+sudo dnf install mediainfo ffmpeg
+
+# Linux (Arch):
+sudo pacman -S mediainfo ffmpeg
+
+# macOS (Homebrew):
+brew install mediainfo ffmpeg
+
+# Windows (Winget CLI):
+winget install MediaArea.MediaInfo Gyan.FFmpeg
+
+# Windows (Manual): 
+# - MediaInfo: https://mediaarea.net/en/MediaInfo/Download
+# - FFmpeg: https://ffmpeg.org/download.html#build-windows
 ```
+> [!NOTE]
+> Ensure **ffmpeg** and **mediainfo** are accessible in your system PATH. You can verify this by running `ffmpeg -version` in your terminal.
 
 ### 2. Install Python dependencies
 ```bash
