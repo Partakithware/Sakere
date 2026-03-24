@@ -970,6 +970,31 @@ video#player {
       <button class="pbtn" tabindex="-1" onclick="toggleFullscreen();this.blur()">⛶</button>
     </div>
   </div>
+  <!-- Up Next overlay -->
+  <div id="upnext-overlay" style="
+    display:none; position:absolute; bottom:90px; right:24px;
+    background:rgba(10,12,20,0.92); backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,0.12); border-radius:12px;
+    padding:16px 18px; min-width:260px; max-width:320px;
+    z-index:30; box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+    <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:6px">Up Next</div>
+    <div id="upnext-title" style="font-size:14px;font-weight:600;color:#fff;margin-bottom:12px;line-height:1.35"></div>
+    <div style="background:rgba(255,255,255,0.12);border-radius:3px;height:3px;margin-bottom:14px;overflow:hidden">
+      <div id="upnext-bar" style="height:100%;background:var(--accent);width:100%;transition:width 1s linear"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="upNextPlay()" style="
+        flex:1;padding:7px 0;background:var(--accent);border:none;
+        border-radius:6px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+        ▶ Play Now
+      </button>
+      <button onclick="upNextCancel()" style="
+        padding:7px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);
+        border-radius:6px;color:#fff;font-size:13px;cursor:pointer">
+        ✕
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- ─── Scan Toast ───────────────────────────────────────────────── -->
@@ -1210,7 +1235,7 @@ async function renderHome() {
       const pct = item.duration ? Math.min(100,(item.watch_progress/item.duration)*100) : 0;
       const mediaType = item.type === 'episode' ? 'episode' : 'movie';
       const clickHandler = item.type === 'episode'
-        ? `openMedia('episode', ${item.id}, ${item.watch_progress||0}, ${!!item.needs_remux}, ${item.duration||0})`
+        ? `openMedia('episode', ${item.id}, ${item.watch_progress||0}, ${!!item.needs_remux}, ${item.duration||0}, ${item.show_id||''})` 
         : item.type === 'movie'
           ? `playMedia('movie', ${item.id}, '${jsStr(item.title)}', ${!!item.needs_remux}, ${item.duration||0}, ${item.watch_progress||0})`
           : `openMedia('${item.type}', ${item.id})`;
@@ -1604,10 +1629,20 @@ async function removePath(id) {
 }
 
 // ─── Media Detail Modal ───────────────────────────────────────────────
-async function openMedia(type, id, startAt = 0, remux = false, duration = 0) {
+async function openMedia(type, id, startAt = 0, remux = false, duration = 0, showId = null) {
   // Episodes from Continue Watching: play directly instead of opening a modal
   if (type === 'episode') {
-    playMedia('episode', id, '', remux, duration, startAt);
+    playMedia('episode', id, '', remux, duration, startAt, 0, 0, -1, false, showId);
+    // If we don't have season data yet for this show, fetch it in background
+    if (showId && window._currentShowId !== showId) {
+      api(`/api/shows/${showId}`).then(data => {
+        if (data?.seasons) {
+          window._currentShowId = showId;
+          window._currentShowSeasons = data.seasons;
+          _buildEpisodeList(showId, data.seasons, id);
+        }
+      });
+    }
     return;
   }
   currentMediaId = id;
@@ -1716,7 +1751,7 @@ function showSeason(key) {
     // Use jsStr to safely embed episode titles with apostrophes
     const safeLabel = jsStr(`S${String(ep.season).padStart(2,'0')}E${String(ep.episode).padStart(2,'0')} \u2014 ${ep.title||''}`);
     return `
-    <div class="episode-item" onclick="playMedia('episode', ${ep.id}, '${safeLabel}', ${!!ep.needs_remux}, ${ep.duration||0}, ${ep.watch_progress > 60 && !ep.watched ? ep.watch_progress : 0})">
+    <div class="episode-item" onclick="playMedia('episode', ${ep.id}, '${safeLabel}', ${!!ep.needs_remux}, ${ep.duration||0}, ${ep.watch_progress > 60 && !ep.watched ? ep.watch_progress : 0}, 0, 0, -1, false, ${window._currentShowId||0})">
       ${ep.still_path ? `<img class="episode-still" src="${ep.still_path}" alt="" onerror="this.outerHTML='<div class=episode-still-placeholder>▶</div>'">` : `<div class="episode-still-placeholder">▶</div>`}
       <div class="ep-info">
         <div class="ep-num">S${String(ep.season).padStart(2,'0')}E${String(ep.episode).padStart(2,'0')}${ep.air_date?' · '+ep.air_date:''}</div>
@@ -1761,9 +1796,15 @@ let playerVideoIdx    = 0;
 let playerSubIdx      = -1;   // -1 = off
 let playerSubIsImage  = false;
 let playerSubBlobUrl  = null; // active WebVTT blob URL
+// Episode autoplay state
+let playerShowId      = null; // DB id of the show currently playing
+let playerEpisodeList = [];   // flat sorted array of all episodes in the show
+let playerEpisodeIdx  = -1;   // index of the current episode in playerEpisodeList
+let _upNextTimer      = null; // countdown interval handle
 
 function playMedia(type, id, title, remux = false, duration = 0, seekTo = 0,
-                   audioIdx = 0, videoIdx = 0, subIdx = -1, subIsImage = false) {
+                   audioIdx = 0, videoIdx = 0, subIdx = -1, subIsImage = false,
+                   showId = null) {
   if (window.DEMO_MODE) {
     showDemoToast();
     return;
@@ -1778,6 +1819,52 @@ function playMedia(type, id, title, remux = false, duration = 0, seekTo = 0,
   playerVideoIdx    = videoIdx;
   playerSubIdx      = subIdx;
   playerSubIsImage  = subIsImage;
+
+  // Episode autoplay playlist
+  // NOTE: save prevShowId BEFORE updating playerShowId — we need to compare them
+  const _prevShowId = playerShowId;
+  playerShowId = showId || null;
+
+  if (type === 'episode') {
+    if (playerShowId && (playerShowId !== _prevShowId || playerEpisodeList.length === 0)) {
+      // Different show or cold start — rebuild the full playlist
+      if (window._currentShowId === playerShowId && window._currentShowSeasons) {
+        // Season data is already cached from the show modal
+        _buildEpisodeList(playerShowId, window._currentShowSeasons, id);
+      } else {
+        // Fetch in background — playback starts immediately without waiting
+        api(`/api/shows/${playerShowId}`).then(data => {
+          if (data?.seasons) {
+            window._currentShowId      = playerShowId;
+            window._currentShowSeasons = data.seasons;
+            _buildEpisodeList(playerShowId, data.seasons, id);
+          }
+        });
+      }
+    } else if (playerShowId && playerEpisodeList.length > 0) {
+      // Same show — just slide the index to the new episode
+      const idx = playerEpisodeList.findIndex(e => e.id === id);
+      if (idx >= 0) playerEpisodeIdx = idx;
+    } else if (!playerShowId) {
+      // No showId available — try to fetch by episode lookup
+      api(`/api/episodes/${id}`).then(epData => {
+        const sid = epData?.show_id;
+        if (!sid) return;
+        playerShowId = sid;
+        api(`/api/shows/${sid}`).then(data => {
+          if (data?.seasons) {
+            window._currentShowId      = sid;
+            window._currentShowSeasons = data.seasons;
+            _buildEpisodeList(sid, data.seasons, id);
+          }
+        });
+      }).catch(() => {});
+    }
+  } else {
+    // Not an episode — clear playlist
+    playerEpisodeList = [];
+    playerEpisodeIdx  = -1;
+  }
 
   // Hide track buttons until tracks are loaded
   document.getElementById('track-audio-btn').style.display = 'none';
@@ -1857,6 +1944,7 @@ function setupPlayerEvents(video) {
     }
   };
 
+  let _upNextShown = false;   // guard: show overlay at most once per episode
   video.ontimeupdate = () => {
     // Clear stall timer once we get real frames
     if (video._stallTimer) { clearTimeout(video._stallTimer); video._stallTimer = null; }
@@ -1869,6 +1957,19 @@ function setupPlayerEvents(video) {
       document.getElementById('player-total').textContent = fmtTime(totalSecs);
     if (Math.round(video.currentTime) % 10 === 0 && video.currentTime > 1)
       saveProgress(currentSecs);
+
+    // Trigger Up Next when within the last 30 s (or last 5% for short episodes).
+    // This is more reliable than onended for remux streams where the browser
+    // never fires 'ended' on a pipe with no Content-Length.
+    if (!_upNextShown && totalSecs > 0 && playerCurrentType === 'episode' &&
+        playerEpisodeIdx >= 0 && playerEpisodeIdx < playerEpisodeList.length - 1) {
+      const remaining = totalSecs - currentSecs;
+      const threshold = Math.max(30, totalSecs * 0.05);
+      if (remaining <= threshold && remaining > 0) {
+        _upNextShown = true;
+        showUpNext();
+      }
+    }
   };
 
   // Windows Edge fires 'ended' immediately when it rejects a streaming response
@@ -1881,6 +1982,14 @@ function setupPlayerEvents(video) {
       return;
     }
     saveProgress(currentPos, true);
+    // Fallback: show Up Next if ontimeupdate threshold wasn't reached
+    // (e.g. user scrubbed to the very end, or onended fired for a direct stream)
+    if (!_upNextShown && playerCurrentType === 'episode' &&
+        playerEpisodeIdx >= 0 &&
+        playerEpisodeIdx < playerEpisodeList.length - 1) {
+      _upNextShown = true;
+      showUpNext();
+    }
   };
 
   // Also catch stall-at-zero (Edge sometimes stalls instead of ending)
@@ -2109,6 +2218,9 @@ function closePlayer() {
   const video = document.getElementById('player');
   saveProgress(playerSeekOffset + video.currentTime);
 
+  // Cancel any Up Next countdown
+  upNextCancel();
+
   // Kill the stall-detection timer before it can trigger retryWithTranscode
   if (video._stallTimer) { clearTimeout(video._stallTimer); video._stallTimer = null; }
 
@@ -2215,6 +2327,109 @@ function startScanPolling() {
 }
 
 // ─── Toast ───────────────────────────────────────────────────────────
+// ─── Episode autoplay / Up Next ──────────────────────────────────────────────
+
+/**
+ * Build a flat, season+episode ordered list from the show's seasons dict.
+ * Skips season 0 (specials) — they shouldn't interrupt linear playback.
+ */
+function _buildEpisodeList(showId, seasons, currentEpId) {
+  const list = [];
+  const keys = Object.keys(seasons)
+    .map(Number)
+    .filter(k => k > 0)   // skip specials
+    .sort((a, b) => a - b);
+
+  for (const season of keys) {
+    const eps = (seasons[String(season)] || [])
+      .slice()
+      .sort((a, b) => a.episode - b.episode);
+    for (const ep of eps) {
+      list.push({
+        id:          ep.id,
+        season:      ep.season,
+        episode:     ep.episode,
+        title:       ep.title || `Episode ${ep.episode}`,
+        needs_remux: !!ep.needs_remux,
+        duration:    ep.duration || 0,
+        watch_progress: ep.watch_progress || 0,
+        watched:     !!ep.watched,
+      });
+    }
+  }
+
+  playerShowId      = showId;
+  playerEpisodeList = list;
+  playerEpisodeIdx  = list.findIndex(e => e.id === currentEpId);
+  console.log(`[Autoplay] Playlist built: ${list.length} episodes, current index=${playerEpisodeIdx}`);
+}
+
+/**
+ * Show the "Up Next" panel and start the 10-second countdown.
+ */
+function showUpNext() {
+  const nextIdx = playerEpisodeIdx + 1;
+  if (nextIdx >= playerEpisodeList.length) return;
+
+  const next = playerEpisodeList[nextIdx];
+  const overlay = document.getElementById('upnext-overlay');
+  const titleEl = document.getElementById('upnext-title');
+  const barEl   = document.getElementById('upnext-bar');
+  if (!overlay || !titleEl || !barEl) return;
+
+  const label = `S${String(next.season).padStart(2,'0')}E${String(next.episode).padStart(2,'0')} — ${next.title}`;
+  titleEl.textContent = label;
+  barEl.style.transition = 'none';
+  barEl.style.width = '100%';
+  overlay.style.display = 'block';
+
+  // Force reflow so transition fires from 100%
+  barEl.getBoundingClientRect();
+  barEl.style.transition = 'width 10s linear';
+  barEl.style.width = '0%';
+
+  let remaining = 10;
+  _upNextTimer = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      clearInterval(_upNextTimer);
+      _upNextTimer = null;
+      upNextPlay();
+    }
+  }, 1000);
+}
+
+/**
+ * Play the next episode immediately.
+ */
+function upNextPlay() {
+  if (_upNextTimer) { clearInterval(_upNextTimer); _upNextTimer = null; }
+  const overlay = document.getElementById('upnext-overlay');
+  if (overlay) overlay.style.display = 'none';
+
+  const nextIdx = playerEpisodeIdx + 1;
+  if (nextIdx >= playerEpisodeList.length) return;
+
+  const next = playerEpisodeList[nextIdx];
+  const label = `S${String(next.season).padStart(2,'0')}E${String(next.episode).padStart(2,'0')} — ${next.title}`;
+  const seekTo = next.watch_progress > 60 && !next.watched ? next.watch_progress : 0;
+
+  // Advance index before calling playMedia so it doesn't get reset
+  playerEpisodeIdx = nextIdx;
+
+  playMedia('episode', next.id, label, next.needs_remux, next.duration, seekTo,
+            0, 0, -1, false, playerShowId);
+}
+
+/**
+ * Dismiss the Up Next panel without playing.
+ */
+function upNextCancel() {
+  if (_upNextTimer) { clearInterval(_upNextTimer); _upNextTimer = null; }
+  const overlay = document.getElementById('upnext-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 // ─── Continue Watching carousel ──────────────────────────────────────────────
 let _cwOffset = 0;   // current scroll offset in px
 
