@@ -88,7 +88,7 @@ Then open http://localhost:7575 in your browser.
 
 ## Notes on Playback
 - **MP4/WebM**: Play natively in the browser, no transcoding needed
-- **MKV and others**: On-the-fly remuxing and transcoding for unsupported formats (MKV, HEVC, etc.)
+- **MKV and others**: On-the-fly remuxing and transcoding for unsupported video (HEVC/H.265) and audio (DTS, AC-3) formats
 
 ## Project Structure
 ```
