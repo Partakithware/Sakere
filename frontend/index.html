@@ -722,6 +722,8 @@ video#player {
 /* ─── Continue Watching Row ───────────────────────────────────────── */
 .cw-carousel {
   position: relative;
+  display: flex;
+  max-width: 84vw;    
 }
 .cw-track-wrap {
   overflow: hidden;           /* hides the scrollbar + clips overflow */
@@ -732,6 +734,7 @@ video#player {
   padding-bottom: 8px;
   /* no overflow-x here — clipped by parent */
   transition: none;
+  max-width:98%;
 }
 /* Arrow buttons */
 .cw-arrow {
@@ -1257,6 +1260,8 @@ async function renderHome() {
         <div class="section-header">
           <div class="section-title">Continue Watching</div>
         </div>
+        <!-- Temporary Center Fix -->
+        <center>
         <div class="cw-carousel" id="cw-carousel">
           <button class="cw-arrow cw-arrow-left" id="cw-prev" onclick="cwScroll(-1)">&#8249;</button>
           <div class="cw-track-wrap">
@@ -1264,6 +1269,7 @@ async function renderHome() {
           </div>
           <button class="cw-arrow cw-arrow-right" id="cw-next" onclick="cwScroll(1)">&#8250;</button>
         </div>
+        </center>
       </div>`;
   }
 
