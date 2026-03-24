@@ -179,6 +179,11 @@ body {
   color: #fff;
   box-shadow: 0 4px 20px var(--accent-glow);
 }
+.btn-secondary {
+  background: var(--surface);
+  color: #fff;
+  box-shadow: 0 4px 20px var(--accent-glow);
+}
 .btn-primary:hover {
   background: var(--accent2);
   transform: translateY(-1px);
@@ -1508,7 +1513,7 @@ async function renderSettings() {
             </label>
             <div style="display:flex;gap:8px;flex-wrap:wrap" id="preset-btns">
               ${['ultrafast','superfast','veryfast','faster','fast','medium','slow'].map(p => `
-                <button class="btn ${tc.preset===p?'btn-primary':''}" id="preset-btn-${p}"
+                <button class="btn ${tc.preset===p?'btn-secondary':'btn-primary'}" id="preset-btn-${p}"
                   style="padding:6px 14px;font-size:12px"
                   onclick="selectPreset('${p}')">${p}</button>
               `).join('')}
@@ -1541,7 +1546,7 @@ async function renderSettings() {
             </label>
             <div style="display:flex;gap:8px;flex-wrap:wrap" id="audio-btns">
               ${['96k','128k','192k','256k','320k'].map(b => `
-                <button class="btn ${tc.audioBitrate===b?'btn-primary':''}" id="audio-btn-${b}"
+                <button class="btn ${tc.audioBitrate===b?'btn-secondary':'btn-primary'}" id="audio-btn-${b}"
                   style="padding:6px 14px;font-size:12px"
                   onclick="selectAudioBitrate('${b}')">${b}</button>
               `).join('')}
@@ -1577,16 +1582,18 @@ let _tcState = { preset: 'fast', crf: 22, audioBitrate: '192k' };
 
 function selectPreset(p) {
   _tcState.preset = p;
-  document.querySelectorAll('#preset-btns .btn').forEach(b => b.classList.remove('btn-primary'));
+  document.querySelectorAll('#preset-btns .btn').forEach(b => b.classList.remove('btn-secondary'));
+  document.querySelectorAll('#preset-btns .btn').forEach(b => b.classList.add('btn-primary'));
   const btn = document.getElementById('preset-btn-' + p);
-  if (btn) btn.classList.add('btn-primary');
+  if (btn) btn.classList.add('btn-secondary');
 }
 
 function selectAudioBitrate(b) {
   _tcState.audioBitrate = b;
-  document.querySelectorAll('#audio-btns .btn').forEach(el => el.classList.remove('btn-primary'));
+  document.querySelectorAll('#audio-btns .btn').forEach(el => el.classList.remove('btn-secondary'));
+  document.querySelectorAll('#audio-btns .btn').forEach(el => el.classList.add('btn-primary'));
   const btn = document.getElementById('audio-btn-' + b);
-  if (btn) btn.classList.add('btn-primary');
+  if (btn) btn.classList.add('btn-secondary');
 }
 
 async function saveTranscodeSettings() {
