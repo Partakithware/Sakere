@@ -15,16 +15,46 @@ A modern, self-hosted media center built with Python, FastAPI, and a sleek dark 
 - ⏭️ Continue Watching & Up Next: The frontend has built-in progress tracking and an "Up Next" autoplay countdown for TV shows.
 - Etc.
 
+## Local-first
+<details>
+<summary>Click to view</summary>
+Data Sovereignty
+
+    The Database: Your sakere.db is a SQLite file sitting right in your project folder. Unlike Plex, which stores your library metadata on their corporate servers, your watch history, file paths, and metadata stay on your hard drive.
+
+    The Settings: Your settings.json (where your TMDB key and paths live) is also local.
+
+2. Direct Streaming (No Middleman)
+
+When you hit play in index.html, the frontend makes a request directly to your FastAPI backend (stream.py).
+
+    How it works: Your computer talks to itself (localhost) or your TV talks to your computer over your home WiFi.
+
+    The Benefit: Your video data never leaves your house. It doesn't travel to a "Sakere Cloud" and back down. This is why your 4K movies can start almost instantly—you're only limited by your router's speed, not your ISP's upload limit.
+
+3. Minimal External Dependencies
+
+The only time your server "calls home" to the internet is in matcher.py to talk to the TMDB API.
+
+    It sends a movie title.
+
+    It gets back a description and a poster URL.
+
+    Everything else—the scanning, the transcoding, the technical metadata extraction (pymediainfo), and the UI serving—is handled entirely by your local Python environment.
+</details>
+
+Help?
+---
+
 Feel free & please pitch in what you can to improve it! The more the merrier!
 If you pitch in please add yourself to the Contributors.md!
 
 As of today the issues section, also has some need-to-do's/wants.
 
-You can get a slight feel at [Display-site](https://sakere-mc.web.app/) which looks like a blank library. 
-Example in display-site is v1.9, Now on v2.2.
-
 Default Theme (Demo Screenshots from v1.9)
 ---
+You can get a slight feel at [Display-site](https://sakere-mc.web.app/) which looks like a blank library. 
+Example in display-site is v1.9, Now on v2.2.
 <details>
   <summary>Click to see the screenshots!</summary>
 
@@ -105,6 +135,8 @@ sakere/
 ├── run.py           # Entry point
 └── requirements.txt
 ```
+
+
 
 ## ⚖️ Legal Disclaimer
 
