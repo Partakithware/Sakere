@@ -335,6 +335,20 @@ async def get_show(show_id: int, db: Session = Depends(get_db)):
     return show_to_dict(s, db)
 
 
+@app.get("/api/episodes/{ep_id}")
+async def get_episode(ep_id: int, db: Session = Depends(get_db)):
+    ep = db.query(Episode).filter(Episode.id == ep_id).first()
+    if not ep:
+        raise HTTPException(status_code=404)
+    return {
+        "id": ep.id, "show_id": ep.show_id,
+        "season": ep.season, "episode": ep.episode,
+        "title": ep.title, "duration": ep.duration,
+        "watch_progress": ep.watch_progress, "watched": ep.watched,
+        "needs_remux": needs_remux(ep.file_path, ep.video_codec, ep.audio_codec),
+    }
+
+
 @app.put("/api/episodes/{ep_id}/progress")
 async def update_episode_progress(ep_id: int, body: WatchProgressUpdate, db: Session = Depends(get_db)):
     ep = db.query(Episode).filter(Episode.id == ep_id).first()
