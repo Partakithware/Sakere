@@ -10,6 +10,9 @@ A modern, self-hosted media center built with Python, FastAPI, and a sleek dark 
 - 💾 SQLite database — single file, no server needed
 - 🌐 Cross-platform (Linux, macOS, Windows)
 - 🖌️ Custom-Theme Accents/Color Options.
+- 📑 Subtitle Support: WebVTT extraction for text subs and live burn-in for image-based subs (PGS/VOBSUB)
+- 🔊 Audio/Sub Track Selection: includes a track-picker UI during playback.
+- ⏭️ Continue Watching & Up Next: The frontend has built-in progress tracking and an "Up Next" autoplay countdown for TV shows.
 - Etc.
 
 Feel free & please pitch in what you can to improve it! The more the merrier!
@@ -68,9 +71,7 @@ Then open http://localhost:7575 in your browser.
 
 ## Notes on Playback
 - **MP4/WebM**: Play natively in the browser, no transcoding needed
-- **MKV and others**: Your browser may not support all formats. For full compatibility, consider:
-  - Remuxing to MP4 with FFmpeg: `ffmpeg -i input.mkv -c copy output.mp4`
-  - Using a browser extension that supports MKV (e.g. VLC browser plugin)
+- **MKV and others**: On-the-fly remuxing and transcoding for unsupported formats (MKV, HEVC, etc.)
 
 ## Project Structure
 ```
