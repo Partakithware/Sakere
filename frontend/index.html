@@ -2576,6 +2576,12 @@ function applyTheme(theme) {
   const {r:tr,g:tg,b:tb} = hexToRgb(text);
   root.style.setProperty('--text2', `rgba(${tr},${tg},${tb},0.6)`);
   root.style.setProperty('--text3', `rgba(${tr},${tg},${tb},0.3)`);
+
+  const topbar = document.getElementById('topbar');
+    if (topbar) {
+      topbar.style.backgroundColor = surface;
+      topbar.style.opacity = "0.8";
+    }
 }
 
 function liveThemePreview() {
@@ -2609,6 +2615,9 @@ function applyPreset(preset, el) {
   document.getElementById('h-bg').value = preset.bg;
   document.getElementById('h-surface').value = preset.surface;
   document.getElementById('h-text').value = preset.text;
+  const topbar = document.getElementById('topbar');
+  topbar.style.backgroundColor = preset.surface;
+  topbar.style.opacity = "0.8";
   applyTheme(preset);
   document.querySelectorAll('.theme-preset').forEach(e => e.classList.remove('active'));
   if (el) el.classList.add('active');
