@@ -54,7 +54,7 @@ As of today the issues section, also has some need-to-do's/wants.
 Default Theme (Demo Screenshots from v1.9)
 ---
 You can get a slight feel at [Display-site](https://sakere-mc.web.app/) which looks like a blank library. 
-Example in display-site is v1.9, Now on v2.2.
+Example display-site is now on v2.2.
 <details>
   <summary>Click to see the screenshots!</summary>
 
