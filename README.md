@@ -2,6 +2,11 @@
 ---
 A modern, self-hosted media center built with Python, FastAPI, and a sleek dark UI.
 
+>IMPORTANT
+>Update 2.3 out, several updates. Download the repo and make sure first thing to extract the /frontend/fonts.zip into the frontend directory where it sits.
+>Then you can delete the fonts.zip and you should have a /fonts/ directory and index.html
+
+
 ## Features
 - 🎬 Movies & 📺 TV Shows library with full metadata from TMDB
 - 🔍 Smart filename parsing via `guessit` (handles S01E01, year detection, etc.)
