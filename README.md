@@ -6,7 +6,7 @@ A modern, self-hosted media center built with Python, FastAPI, and a sleek dark 
 >Update 2.3 out, several updates. Download the repo and make sure first thing to extract the /frontend/fonts.zip into the frontend directory where it sits.
 >Then you can delete the fonts.zip and you should have a /fonts/ directory and index.html
 
-Working on Update 2.4: Currently adding option to edit metadata/posters/backdrops!
+Working on Update 2.4: Currently adding option to edit metadata/posters/backdrops! Update 2.3.4 pushed which has basic metadata editing already.
 
 
 ## Features
@@ -58,7 +58,7 @@ If you pitch in please add yourself to the Contributors.md!
 
 As of today the issues section, also has some need-to-do's/wants.
 
-Default Theme (Demo Screenshots from v1.9)
+Default Theme (Demo Screenshots from v2.3.4)
 ---
 You can get a slight feel at [Display-site](https://sakere-mc.web.app/) which looks like a blank library. 
 Example display-site is now on v2.2.
