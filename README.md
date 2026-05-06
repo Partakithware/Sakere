@@ -73,6 +73,7 @@ Example display-site is now on v2.2.
 ![Image](./screenshots/6.png)
 ![Image](./screenshots/7.png)
 ![Image](./screenshots/8.png)
+![Image](./screenshots/9.png)
 
 </details>
 
