@@ -1281,29 +1281,46 @@ async function renderHome() {
     api('/api/continue-watching')
   ]);
 
+// 1. Logic Processing (Outside the string)
+  const featured = (recent || []).find(i => i.backdrop_path);
   let heroHtml = '';
-  const featured = (recent||[]).find(i => i.backdrop_path);
+
   if (featured) {
+    const { type, id, title, overview, backdrop_path, year, rating, runtime } = featured;
+    
+    // Pre-format snippets
+    const badgeText = type === 'show' ? 'TV Show' : 'Movie';
+    const yearSpan  = year ? `<span>${year}</span>` : '';
+    const rateSpan  = rating ? `<span class="hero-rating"><i class="fa-solid fa-star" style="color: #ffd43b;"></i> ${rating.toFixed(1)}</span>` : '';
+    const timeSpan  = runtime ? `<span>${fmtRuntime(runtime)}</span>` : '';
+
     heroHtml = `
       <div class="hero">
-        <div class="hero-bg" style="background-image:url('${featured.backdrop_path}')"></div>
+        <div class="hero-bg" style="background-image:url('${backdrop_path}')"></div>
         <div class="hero-gradient"></div>
         <div class="hero-content">
-          <div class="hero-badge">${featured.type === 'show' ? 'TV Show' : 'Movie'}</div>
-          <div class="hero-title">${escHtml(featured.title)}</div>
-          <div class="hero-overview">${escHtml(featured.overview||'')}</div>
+          <div class="hero-badge">${badgeText}</div>
+          <div class="hero-title">${escHtml(title)}</div>
+          <div class="hero-overview">${escHtml(overview || '')}</div>
           <div class="hero-actions">
-            <button class="btn btn-primary" onclick="openMedia('${featured.type}',${featured.id})">View Details</button>
-            <div class="hero-meta">
-              ${featured.year ? `<span>${featured.year}</span>` : ''}
-              ${featured.rating ? `<span class="hero-rating"><i class="fa-solid fa-star" style="color: rgb(255, 212, 59);"></i> ${featured.rating.toFixed(1)}</span>` : ''}
-              ${featured.runtime ? `<span>${fmtRuntime(featured.runtime)}</span>` : ''}
-            </div>
+            <button class="btn btn-primary" onclick="openMedia('${type}', ${id})">View Details</button>
+            <div class="hero-meta">${yearSpan}${rateSpan}${timeSpan}</div>
           </div>
         </div>
       </div>`;
   } else {
-    heroHtml = `<div class="hero"><div class="hero-empty"><div style="font-size:52px"><i class="fa-solid fa-ticket"></i></div><h2 style="font-family:Montserrat,sans-serif;font-size:22px;font-weight:700;color:var(--text2)">Your Library Awaits</h2><p style="font-size:14px">Add a library path in Settings and scan to get started.</p><div style="margin-top:20px"><button class="btn btn-primary" onclick="navigate('settings')">⚙ Configure Library</button></div></div></div>`;
+    // 2. Cleaned up the Empty State (Removed messy inline styles)
+    heroHtml = `
+      <div class="hero">
+        <div class="hero-empty">
+          <div class="hero-empty-icon"><i class="fa-solid fa-ticket"></i></div>
+          <h2>Your Library Awaits</h2>
+          <p>Add a library path in Settings and scan to get started.</p>
+          <div class="hero-empty-actions">
+            <button class="btn btn-primary" onclick="navigate('settings')">⚙ Configure Library</button>
+          </div>
+        </div>
+      </div>`;
   }
 
   let cwHtml = '';
@@ -2831,25 +2848,43 @@ async function runTmdbSearch() {
   if (!q) return;
 
   const el = document.getElementById('tmdb-results');
-  el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:20px">Searching...</div>';
+  el.innerHTML = '<div class="tmdb-status-msg">Searching...</div>';
 
   const results = await api(`/api/tmdb/search?q=${encodeURIComponent(q)}&type=${type}`);
+  
   if (!results || results.length === 0) {
-    el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:20px">No results found. Try a different search.</div>';
+    el.innerHTML = '<div class="tmdb-status-msg">No results found. Try a different search.</div>';
     return;
   }
 
-  el.innerHTML = results.map(r => `
+  el.innerHTML = results.map(r => {
+    // 1. Determine correct icon based on type
+    const iconClass = (type === 'tv' || r.media_type === 'tv') ? 'fa-tv' : 'fa-film';
+    const iconHtml = `<i class="fa-solid ${iconClass}"></i>`;
+    
+    // 2. Fix the Quote Soup for onerror
+    // We use escaped single quotes (\') so the browser doesn't choke
+    const errorFallback = `this.onerror=null;this.outerHTML='<div class=tmdb-result-placeholder>${iconHtml.replace(/"/g, "'")}</div>'`;
+
+    // 3. Pre-format the metadata row
+    const ratingHtml = r.rating 
+      ? `<i class="fa-solid fa-star" style="color: #ffd43b;"></i> ${r.rating.toFixed(1)}` 
+      : null;
+    const metaStr = [r.year, ratingHtml].filter(Boolean).join(' · ');
+
+    return `
     <div class="tmdb-result" onclick="applyTmdbMatch(${r.id})">
       ${r.poster_path
-        ? `<img class="tmdb-result-poster" src="${r.poster_path}" alt="" onerror="this.outerHTML='<div class=tmdb-result-placeholder><i class="fa-solid fa-film"></i></div>'">`
-        : `<div class="tmdb-result-placeholder">${type==='tv'?'<i class="fa-solid fa-tv"></i>':'<i class="fa-solid fa-film"></i>'}</div>`}
-      <div style="flex:1">
-        <div class="tmdb-result-title">${escHtml(r.title||'')}</div>
-        <div class="tmdb-result-meta">${[r.year, r.rating?'<i class="fa-solid fa-star" style="color: rgb(255, 212, 59);"></i> '+r.rating.toFixed(1):null].filter(Boolean).join(' · ')}</div>
+        ? `<img class="tmdb-result-poster" src="${r.poster_path}" alt="" onerror="${errorFallback}">`
+        : `<div class="tmdb-result-placeholder">${iconHtml}</div>`
+      }
+      <div class="tmdb-result-info">
+        <div class="tmdb-result-title">${escHtml(r.title || '')}</div>
+        <div class="tmdb-result-meta">${metaStr}</div>
         ${r.overview ? `<div class="tmdb-result-overview">${escHtml(r.overview)}</div>` : ''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 async function applyTmdbMatch(tmdbId) {
