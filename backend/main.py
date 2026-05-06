@@ -88,6 +88,35 @@ class WatchProgressUpdate(BaseModel):
     watched: Optional[bool] = None
 
 
+class MovieEditBody(BaseModel):
+    title: Optional[str] = None
+    year: Optional[int] = None
+    overview: Optional[str] = None
+    tagline: Optional[str] = None
+    rating: Optional[float] = None
+    genres: Optional[str] = None
+    runtime: Optional[int] = None
+
+
+class ShowEditBody(BaseModel):
+    title: Optional[str] = None
+    overview: Optional[str] = None
+    rating: Optional[float] = None
+    genres: Optional[str] = None
+    status: Optional[str] = None
+    first_air_date: Optional[str] = None
+
+
+class EpisodeEditBody(BaseModel):
+    title: Optional[str] = None
+    overview: Optional[str] = None
+
+
+class ArtworkBody(BaseModel):
+    image_type: str   # "poster" or "backdrop"
+    tmdb_path: str    # TMDB path e.g. "/abc123.jpg"
+
+
 # Global scan progress
 scan_progress = ProgressUpdate()
 
@@ -610,6 +639,132 @@ async def match_show(show_id: int, tmdb_id: int, db: Session = Depends(get_db)):
                 ep.runtime  = ep_data.get("runtime", ep.runtime)
         except Exception:
             pass
+    db.commit()
+    return show_to_dict(s, db)
+
+
+# ─── Image cache helper ──────────────────────────────────────────────────────
+
+def delete_cached_image(img_path: str):
+    """Delete a locally-cached image given its /api/images/<filename> path."""
+    if not img_path or not img_path.startswith("/api/images/"):
+        return
+    filename = img_path.removeprefix("/api/images/")
+    local = IMAGES_DIR / filename
+    try:
+        if local.exists():
+            local.unlink()
+    except Exception as e:
+        print(f"Image delete error: {e}")
+
+
+# ─── Edit metadata routes ────────────────────────────────────────────────────
+
+@app.put("/api/movies/{movie_id}/edit")
+async def edit_movie(movie_id: int, body: MovieEditBody, db: Session = Depends(get_db)):
+    m = db.query(Movie).filter(Movie.id == movie_id).first()
+    if not m:
+        raise HTTPException(status_code=404)
+    if body.title    is not None: m.title    = body.title
+    if body.year     is not None: m.year     = body.year
+    if body.overview is not None: m.overview = body.overview
+    if body.tagline  is not None: m.tagline  = body.tagline
+    if body.rating   is not None: m.rating   = body.rating
+    if body.genres   is not None: m.genres   = body.genres
+    if body.runtime  is not None: m.runtime  = body.runtime
+    db.commit()
+    return movie_to_dict(m)
+
+
+@app.put("/api/shows/{show_id}/edit")
+async def edit_show(show_id: int, body: ShowEditBody, db: Session = Depends(get_db)):
+    s = db.query(TVShow).filter(TVShow.id == show_id).first()
+    if not s:
+        raise HTTPException(status_code=404)
+    if body.title          is not None: s.title          = body.title
+    if body.overview       is not None: s.overview       = body.overview
+    if body.rating         is not None: s.rating         = body.rating
+    if body.genres         is not None: s.genres         = body.genres
+    if body.status         is not None: s.status         = body.status
+    if body.first_air_date is not None: s.first_air_date = body.first_air_date
+    db.commit()
+    return show_to_dict(s, db)
+
+
+@app.put("/api/episodes/{ep_id}/edit")
+async def edit_episode(ep_id: int, body: EpisodeEditBody, db: Session = Depends(get_db)):
+    ep = db.query(Episode).filter(Episode.id == ep_id).first()
+    if not ep:
+        raise HTTPException(status_code=404)
+    if body.title    is not None: ep.title    = body.title
+    if body.overview is not None: ep.overview = body.overview
+    db.commit()
+    return {"ok": True, "id": ep.id, "title": ep.title, "overview": ep.overview}
+
+
+@app.get("/api/tmdb/images")
+async def get_tmdb_images(type: str, tmdb_id: int):
+    """Return available poster and backdrop images for a movie/show from TMDB."""
+    api_key = load_settings().get("tmdb_api_key", "")
+    if not api_key or not tmdb_id:
+        return {"posters": [], "backdrops": []}
+    import httpx
+    segment = f"movie/{tmdb_id}/images" if type == "movie" else f"tv/{tmdb_id}/images"
+    async with httpx.AsyncClient() as client:
+        try:
+            r = await client.get(
+                f"{matcher.TMDB_BASE_URL}/{segment}",
+                params={"api_key": api_key},
+                timeout=10,
+            )
+            if r.status_code != 200:
+                return {"posters": [], "backdrops": []}
+            data = r.json()
+        except Exception as e:
+            print(f"TMDB images error: {e}")
+            return {"posters": [], "backdrops": []}
+
+    def img_info(img, is_backdrop=False):
+        path = img.get("file_path", "")
+        size = "w300" if is_backdrop else "w185"
+        return {"tmdb_path": path, "url": matcher.poster_url(path, size)}
+
+    return {
+        "posters":   [img_info(i)       for i in data.get("posters",   [])[:24]],
+        "backdrops": [img_info(i, True) for i in data.get("backdrops", [])[:16]],
+    }
+
+
+@app.put("/api/movies/{movie_id}/artwork")
+async def set_movie_artwork(movie_id: int, body: ArtworkBody, db: Session = Depends(get_db)):
+    m = db.query(Movie).filter(Movie.id == movie_id).first()
+    if not m:
+        raise HTTPException(status_code=404)
+    if body.image_type == "poster":
+        delete_cached_image(m.poster_path)
+        m.poster_path = await matcher.poster_url_cached(body.tmdb_path, "w500")
+    elif body.image_type == "backdrop":
+        delete_cached_image(m.backdrop_path)
+        m.backdrop_path = await matcher.backdrop_url_cached(body.tmdb_path, "w1280")
+    else:
+        raise HTTPException(status_code=400, detail="image_type must be 'poster' or 'backdrop'")
+    db.commit()
+    return movie_to_dict(m)
+
+
+@app.put("/api/shows/{show_id}/artwork")
+async def set_show_artwork(show_id: int, body: ArtworkBody, db: Session = Depends(get_db)):
+    s = db.query(TVShow).filter(TVShow.id == show_id).first()
+    if not s:
+        raise HTTPException(status_code=404)
+    if body.image_type == "poster":
+        delete_cached_image(s.poster_path)
+        s.poster_path = await matcher.poster_url_cached(body.tmdb_path, "w500")
+    elif body.image_type == "backdrop":
+        delete_cached_image(s.backdrop_path)
+        s.backdrop_path = await matcher.backdrop_url_cached(body.tmdb_path, "w1280")
+    else:
+        raise HTTPException(status_code=400, detail="image_type must be 'poster' or 'backdrop'")
     db.commit()
     return show_to_dict(s, db)
 
