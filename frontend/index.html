@@ -893,6 +893,59 @@ video#player {
   overflow: hidden;
 }
 
+/* ─── Meta Edit Panel (Details + Artwork tabs) ────────────────────── */
+.edit-tabs { display: flex; gap: 0; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+.edit-tab {
+  padding: 9px 18px; font-size: 13px; font-weight: 600;
+  color: var(--text3); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: all var(--transition);
+}
+.edit-tab:hover { color: var(--text2); }
+.edit-tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+.edit-tab-content { display: none; }
+.edit-tab-content.active { display: block; }
+.artwork-section-title {
+  font-size: 11px; font-weight: 700; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .08em; margin: 14px 0 8px;
+}
+.artwork-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  gap: 8px; margin-bottom: 10px;
+}
+.artwork-grid.backdrops { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
+.artwork-thumb {
+  border-radius: 8px; overflow: hidden; cursor: pointer;
+  border: 2px solid transparent; transition: all var(--transition);
+  aspect-ratio: 2/3; background: var(--surface3); position: relative;
+}
+.artwork-grid.backdrops .artwork-thumb { aspect-ratio: 16/9; }
+.artwork-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.artwork-thumb:hover { border-color: var(--accent); transform: scale(1.03); }
+.artwork-thumb.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.artwork-thumb.selected::after {
+  content: '✓'; position: absolute; top: 4px; right: 4px;
+  width: 18px; height: 18px; background: var(--accent); border-radius: 50%;
+  font-size: 10px; font-weight: 800; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+/* Per-episode edit */
+.episode-wrap { display: flex; flex-direction: column; }
+.ep-edit-btn {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  background: var(--surface3); border: 1px solid var(--border);
+  color: var(--text3); font-size: 12px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.ep-edit-btn:hover { background: var(--accent-dim); color: var(--accent2); border-color: rgba(59,130,246,0.3); }
+.ep-edit-form {
+  background: var(--surface); border: 1px solid rgba(59,130,246,0.2);
+  border-radius: var(--radius-sm); padding: 14px; margin-top: 0;
+  display: none;
+}
+.ep-edit-form.open { display: block; }
+
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
   #sidebar { transform: translateX(-240px); }
@@ -917,22 +970,22 @@ video#player {
     <div class="nav-section">
       <div class="nav-label">Library</div>
       <div class="nav-item active" data-page="home" onclick="navigate('home')">
-        <span class="nav-icon">⌂</span> Home
+        <span class="nav-icon"><i class="fa-solid fa-house-chimney"></i></span> Home
       </div>
       <div class="nav-item" data-page="movies" onclick="navigate('movies')">
-        <span class="nav-icon">◼</span> Movies
+        <span class="nav-icon"><i class="fa-solid fa-grip-vertical"></i></span> Movies
       </div>
       <div class="nav-item" data-page="shows" onclick="navigate('shows')">
-        <span class="nav-icon">◉</span> TV Shows
+        <span class="nav-icon"><i class="fa-solid fa-grip-vertical"></i></span> TV Shows
       </div>
       <div class="nav-label" style="margin-top:16px">System</div>
       <div class="nav-item" data-page="settings" onclick="navigate('settings')">
-        <span class="nav-icon">⚙</span> Settings
+        <span class="nav-icon"><i class="fa-solid fa-gears"></i></span> Settings
       </div>
     </div>
     <div class="sidebar-footer">
       <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="triggerScan()">
-        ⟳ Scan Library
+        <i class="fa-solid fa-arrow-rotate-right"></i> Scan Library
       </button>
     </div>
   </nav>
@@ -942,7 +995,7 @@ video#player {
     <div id="topbar">
       <div class="topbar-title" id="page-title">Home</div>
       <div class="search-wrap">
-        <span class="search-icon">⌕</span>
+        <span class="search-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
         <input class="search-input" id="search-input" placeholder="Search movies & shows..." oninput="handleSearch(this.value)">
       </div>
     </div>
@@ -961,7 +1014,7 @@ video#player {
 <!-- ─── Player Modal ────────────────────────────────────────────── -->
 <div class="player-modal-backdrop" id="player-modal">
   <div class="player-topbar">
-    <button class="btn-icon" onclick="closePlayer()" style="background:rgba(0,0,0,0.5);color:#fff;border-color:rgba(255,255,255,0.2)">←</button>
+    <button class="btn-icon" onclick="closePlayer()" style="background:rgba(0,0,0,0.5);color:#fff;border-color:rgba(255,255,255,0.2)"><i class="fa-solid fa-arrow-left"></i></button>
     <div class="player-title" id="player-title"></div>
   </div>
   <video id="player" preload="metadata"></video>
@@ -1177,14 +1230,20 @@ function progressPct(item) {
   return Math.min(100, (item.watch_progress / item.duration) * 100);
 }
 
-// ─── Card builder ────────────────────────────────────────────────────
 function buildCard(item) {
   const pct = progressPct(item);
-  const posterHtml = item.poster_path
-    ? `<img src="${item.poster_path}" alt="${item.title}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=card-no-poster><span>🎬</span><span>${escHtml(item.title)}</span></div>'">`
-    : `<div class="card-no-poster"><span>${item.type==='show'?'📺':'🎬'}</span><span>${escHtml(item.title)}</span></div>`;
+  
+  // 1. Determine which icon to use based on type
+  const iconClass = item.type === 'show' ? 'fa-tv' : 'fa-film';
+  const iconHtml = `<i class="fa-solid ${iconClass}"></i>`;
 
-  const badgeHtml = item.watched ? '<div class="card-badge watched">✓ Watched</div>' : (item.resolution ? `<div class="card-badge">${item.resolution}</div>` : '');
+  // 2. The poster logic
+  // Note the use of backslashes (\') inside the onerror string to prevent breaking the HTML
+  const posterHtml = item.poster_path
+    ? `<img src="${item.poster_path}" alt="${escHtml(item.title)}" loading="lazy" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=card-no-poster><span><i class=\'fa-solid ${iconClass}\'></i></span><span>${escHtml(item.title)}</span></div>'">`
+    : `<div class="card-no-poster"><span>${iconHtml}</span><span>${escHtml(item.title)}</span></div>`;
+
+  const badgeHtml = item.watched ? '<div class="card-badge watched"><i class="fa-solid fa-check"></i> Watched</div>' : (item.resolution ? `<div class="card-badge">${item.resolution}</div>` : '');
   const progressHtml = pct > 0 ? `<div class="progress-bar-card"><div class="progress-bar-fill" style="width:${pct}%"></div></div>` : '';
   const metaStr = [item.year || (item.first_air_date ? item.first_air_date.slice(0,4) : ''), starRating(item.rating), item.episode_count ? `${item.episode_count} eps` : ''].filter(Boolean).join(' · ');
 
@@ -1192,7 +1251,7 @@ function buildCard(item) {
     <div class="media-card card-anim fade-in" onclick="openMedia('${item.type}', ${item.id})">
       <div class="card-poster">
         ${posterHtml}
-        <div class="card-overlay"><!--<div class="play-btn-overlay">▶</div>--></div>
+        <div class="card-overlay"></div>
         ${badgeHtml}
       </div>
       <div class="card-info">
@@ -1230,21 +1289,21 @@ async function renderHome() {
         <div class="hero-bg" style="background-image:url('${featured.backdrop_path}')"></div>
         <div class="hero-gradient"></div>
         <div class="hero-content">
-          <div class="hero-badge">${featured.type === 'show' ? '📺 TV Show' : '🎬 Movie'}</div>
+          <div class="hero-badge">${featured.type === 'show' ? 'TV Show' : 'Movie'}</div>
           <div class="hero-title">${escHtml(featured.title)}</div>
           <div class="hero-overview">${escHtml(featured.overview||'')}</div>
           <div class="hero-actions">
-            <button class="btn btn-primary" onclick="openMedia('${featured.type}',${featured.id})">▶ View Details</button>
+            <button class="btn btn-primary" onclick="openMedia('${featured.type}',${featured.id})">View Details</button>
             <div class="hero-meta">
               ${featured.year ? `<span>${featured.year}</span>` : ''}
-              ${featured.rating ? `<span class="hero-rating">⭐ ${featured.rating.toFixed(1)}</span>` : ''}
+              ${featured.rating ? `<span class="hero-rating"><i class="fa-solid fa-star" style="color: rgb(255, 212, 59);"></i> ${featured.rating.toFixed(1)}</span>` : ''}
               ${featured.runtime ? `<span>${fmtRuntime(featured.runtime)}</span>` : ''}
             </div>
           </div>
         </div>
       </div>`;
   } else {
-    heroHtml = `<div class="hero"><div class="hero-empty"><div style="font-size:52px">🎬</div><h2 style="font-family:Montserrat,sans-serif;font-size:22px;font-weight:700;color:var(--text2)">Your Library Awaits</h2><p style="font-size:14px">Add a library path in Settings and scan to get started.</p><div style="margin-top:20px"><button class="btn btn-primary" onclick="navigate('settings')">⚙ Configure Library</button></div></div></div>`;
+    heroHtml = `<div class="hero"><div class="hero-empty"><div style="font-size:52px"><i class="fa-solid fa-ticket"></i></div><h2 style="font-family:Montserrat,sans-serif;font-size:22px;font-weight:700;color:var(--text2)">Your Library Awaits</h2><p style="font-size:14px">Add a library path in Settings and scan to get started.</p><div style="margin-top:20px"><button class="btn btn-primary" onclick="navigate('settings')">⚙ Configure Library</button></div></div></div>`;
   }
 
   let cwHtml = '';
@@ -1263,7 +1322,7 @@ async function renderHome() {
             onclick="event.stopPropagation(); cwRemove('${mediaType}', ${item.id}, this)">✕</button>
           <div class="cw-thumb">
             ${item.poster_path ? `<img src="${item.poster_path}" alt="" onerror="this.style.display='none'">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3)">${item.type==='show'||item.type==='episode'?'📺':'🎬'}</div>`}
-            <div class="cw-thumb-overlay">▶</div>
+            <div class="cw-thumb-overlay"><i class="fa-solid fa-play"></i></div>
           </div>
           <div class="cw-bar"><div class="cw-bar-fill" style="width:${pct}%"></div></div>
           <div class="cw-info"><div class="cw-title">${escHtml(item.title)}</div></div>
@@ -1425,7 +1484,7 @@ async function renderSettings() {
     <div style="max-width:720px">
 
       <div class="settings-card">
-        <h3>🔑 TMDB API Key</h3>
+        <h3><i class="fa-solid fa-unlock"></i> TMDB API Key</h3>
         <p>Required for metadata, posters, and descriptions. Free key at <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent2)">themoviedb.org</a></p>
         <div class="form-row">
           <div class="form-group">
@@ -1437,7 +1496,7 @@ async function renderSettings() {
       </div>
 
       <div class="settings-card">
-        <h3>🎨 Theme</h3>
+        <h3><i class="fa-solid fa-brush"></i> Theme</h3>
         <p>Choose a preset or customize individual colors. Changes are saved and applied immediately.</p>
         <div class="theme-presets">${presetHtml}</div>
         <div class="color-row">
@@ -1471,13 +1530,13 @@ async function renderSettings() {
           </div>
         </div>
         <div style="display:flex;gap:10px">
-          <button class="btn btn-primary" onclick="saveTheme()">💾 Save Theme</button>
-          <button class="btn btn-ghost" onclick="resetTheme()">↺ Reset to Default</button>
+          <button class="btn btn-primary" onclick="saveTheme()"><i class="fa-solid fa-floppy-disk"></i> Save Theme</button>
+          <button class="btn btn-ghost" onclick="resetTheme()"><i class="fa-solid fa-arrow-rotate-right"></i> Reset to Default</button>
         </div>
       </div>
 
       <div class="settings-card">
-        <h3>📁 Library Paths</h3>
+        <h3><i class="fa-solid fa-folder-plus"></i> Library Paths</h3>
         <p>Add folders containing your movies or TV shows. Sakere scans them recursively.</p>
         <div class="form-row" style="margin-bottom:20px">
           <div class="form-group">
@@ -1498,19 +1557,19 @@ async function renderSettings() {
       </div>
 
       <div class="settings-card">
-        <h3>🔍 Library Scan</h3>
+        <h3><i class="fa-solid fa-magnifying-glass"></i> Library Scan</h3>
         <p>Scan all configured library paths to find new media and fetch metadata.</p>
         <button class="btn btn-primary" onclick="triggerScan()">⟳ Start Scan</button>
       </div>
 
       <div class="settings-card">
-        <h3>⚡ System</h3>
+        <h3><i class="fa-solid fa-microchip"></i> System</h3>
         <p style="margin-bottom:8px">${ffmpegStatus}</p>
         <p>FFmpeg enables MKV, AVI, and other formats to play in the browser via on-the-fly remux.</p>
       </div>
 
       <div class="settings-card" id="transcode-card" style="${sys?.ffmpeg ? '' : 'opacity:0.45;pointer-events:none'}">
-        <h3>🎛 Transcoding Settings</h3>
+        <h3><i class="fa-solid fa-screwdriver-wrench"></i> Transcoding Settings</h3>
         <p>Controls FFmpeg when remuxing incompatible files. Changes take effect on the next play.</p>
 
         <div style="display:grid;gap:20px;margin-top:8px">
@@ -1563,13 +1622,13 @@ async function renderSettings() {
           </div>
 
           <button class="btn btn-primary" style="align-self:flex-start" onclick="saveTranscodeSettings()">
-            💾 Save Transcoding Settings
+            <i class="fa-solid fa-floppy-disk"></i> Save Transcoding Settings
           </button>
         </div>
       </div>
 
       <div class="settings-card">
-        <h3>ℹ About Sakere</h3>
+        <h3><i class="fa-solid fa-info"></i> About Sakere</h3>
         <p>Sakere v1.0 — Personal media center built with FastAPI, SQLite, pymediainfo, guessit, and TMDB.</p>
         <div class="modal-info-grid" style="margin-top:16px">
           <div class="info-chip"><div class="info-chip-label">Backend</div><div class="info-chip-value">FastAPI</div></div>
@@ -1740,13 +1799,14 @@ function buildMovieModal(m) {
       ${m.overview ? `<div class="modal-overview">${escHtml(m.overview)}</div>` : ''}
       <div class="modal-actions">
         ${m.watch_progress > 60 && !m.watched
-          ? `<button class="btn btn-primary" onclick="playMedia('movie', ${m.id}, '${jsStr(m.title)}', ${!!m.needs_remux}, ${m.duration||0}, ${m.watch_progress||0})">▶ Resume</button>
-             <button class="btn btn-ghost" onclick="playMedia('movie', ${m.id}, '${jsStr(m.title)}', ${!!m.needs_remux}, ${m.duration||0}, 0)">↺ Start Over</button>`
-          : `<button class="btn btn-primary" onclick="playMedia('movie', ${m.id}, '${jsStr(m.title)}', ${!!m.needs_remux}, ${m.duration||0}, 0)">▶ Play</button>`
+          ? `<button class="btn btn-primary" onclick="playMedia('movie', ${m.id}, '${jsStr(m.title)}', ${!!m.needs_remux}, ${m.duration||0}, ${m.watch_progress||0})"><i class="fa-solid fa-play"></i> Resume</button>
+             <button class="btn btn-ghost" onclick="playMedia('movie', ${m.id}, '${jsStr(m.title)}', ${!!m.needs_remux}, ${m.duration||0}, 0)"><i class="fa-solid fa-arrows-rotate"></i> Start Over</button>`
+          : `<button class="btn btn-primary" onclick="playMedia('movie', ${m.id}, '${jsStr(m.title)}', ${!!m.needs_remux}, ${m.duration||0}, 0)"><i class="fa-solid fa-play"></i> Play</button>`
         }
-        <button class="btn btn-ghost" onclick="markWatched('movie', ${m.id})">${m.watched ? '✓ Watched' : '○ Mark Watched'}</button>
-        <button class="btn btn-ghost" onclick="openEditPanel('movie', ${m.id}, '${jsStr(m.title)}')">✎ Fix Match</button>
-        <button class="btn btn-ghost" style="color:var(--red); border-color:rgba(239,68,68,0.2)" onclick="deleteMedia('movie', ${m.id})">🗑 Remove</button>
+        <button class="btn btn-ghost" onclick="markWatched('movie', ${m.id})">${m.watched ? '<i class="fa-solid fa-circle-check" style="color: rgb(119, 230, 99);"></i> Watched' : '<i class="fa-regular fa-circle"></i> Mark Watched'}</button>
+        <button class="btn btn-ghost" onclick="openEditPanel('movie', ${m.id}, '${jsStr(m.title)}')"><i class="fa-solid fa-eye"></i> Fix Match</button>
+        <button class="btn btn-ghost" onclick="openMetaEditPanel('movie', ${m.id})"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
+        <button class="btn btn-ghost" style="color:var(--red); border-color:rgba(239,68,68,0.2)" onclick="deleteMedia('movie', ${m.id})"><i class="fa-solid fa-trash"></i> Remove</button>
       </div>
       <div class="modal-info-grid">${chips}</div>
     </div>`;
@@ -1773,11 +1833,12 @@ function buildShowModal(s) {
       ${s.genres ? `<div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">${s.genres.split(',').map(g=>`<span class="chip blue">${g.trim()}</span>`).join('')}</div>` : ''}
       ${s.overview ? `<div class="modal-overview">${escHtml(s.overview)}</div>` : ''}
       <div style="margin-bottom:20px">
-        <button class="btn btn-ghost btn-sm" onclick="openEditPanel('show', ${s.id}, '${jsStr(s.title)}')">✎ Fix Match</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--red); border-color:rgba(239,68,68,0.2)" onclick="deleteMedia('show', ${s.id})">🗑 Remove</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditPanel('show', ${s.id}, '${jsStr(s.title)}')"><i class="fa-solid fa-eye"></i> Fix Match</button>
+        <button class="btn btn-ghost btn-sm" onclick="openMetaEditPanel('show', ${s.id})"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red); border-color:rgba(239,68,68,0.2)" onclick="deleteMedia('show', ${s.id})"><i class="fa-solid fa-trash"></i> Remove</button>
       </div>
       <div class="modal-info-grid">
-        ${s.rating ? `<div class="info-chip"><div class="info-chip-label">Rating</div><div class="info-chip-value">⭐ ${s.rating.toFixed(1)}</div></div>` : ''}
+        ${s.rating ? `<div class="info-chip"><div class="info-chip-label">Rating</div><div class="info-chip-value"><i class="fa-solid fa-star" style="color: rgb(255, 212, 59);"></i> ${s.rating.toFixed(1)}</div></div>` : ''}
         ${s.first_air_date ? `<div class="info-chip"><div class="info-chip-label">First Aired</div><div class="info-chip-value">${s.first_air_date}</div></div>` : ''}
         <div class="info-chip"><div class="info-chip-label">Episodes</div><div class="info-chip-value">${s.episode_count}</div></div>
         <div class="info-chip"><div class="info-chip-label">Watched</div><div class="info-chip-value">${s.watched_count} / ${s.episode_count}</div></div>
@@ -1790,7 +1851,6 @@ function buildShowModal(s) {
 }
 
 function showSeason(key) {
-  // Read from global storage — no JSON in onclick
   const seasons = window._currentShowSeasons || {};
   document.querySelectorAll('.season-tab').forEach(t => t.classList.remove('active'));
   const tab = document.getElementById(`stab-${key}`);
@@ -1798,20 +1858,44 @@ function showSeason(key) {
   const eps = seasons[key] || [];
   const listEl = document.getElementById('episode-list');
   if (!listEl) return;
+
   listEl.innerHTML = eps.map(ep => {
-    // Use jsStr to safely embed episode titles with apostrophes
     const safeLabel = jsStr(`S${String(ep.season).padStart(2,'0')}E${String(ep.episode).padStart(2,'0')} \u2014 ${ep.title||''}`);
+    
+    // Fix: We use escaped single quotes (\') for FontAwesome classes so they don't break the onerror double quotes
+    const errorFallback = `this.onerror=null;this.outerHTML='<div class=episode-still-placeholder><i class=\\'fa-solid fa-play\\'></i></div>'`;
+
     return `
-    <div class="episode-item" onclick="playMedia('episode', ${ep.id}, '${safeLabel}', ${!!ep.needs_remux}, ${ep.duration||0}, ${ep.watch_progress > 60 && !ep.watched ? ep.watch_progress : 0}, 0, 0, -1, false, ${window._currentShowId||0})">
-      ${ep.still_path ? `<img class="episode-still" src="${ep.still_path}" alt="" onerror="this.outerHTML='<div class=episode-still-placeholder>▶</div>'">` : `<div class="episode-still-placeholder">▶</div>`}
-      <div class="ep-info">
-        <div class="ep-num">S${String(ep.season).padStart(2,'0')}E${String(ep.episode).padStart(2,'0')}${ep.air_date?' · '+ep.air_date:''}</div>
-        <div class="ep-title">${escHtml(ep.title || `Episode ${ep.episode}`)}</div>
-        ${ep.overview ? `<div class="ep-overview">${escHtml(ep.overview)}</div>` : ''}
-        ${ep.watch_progress > 0 && !ep.watched ? `<div class="progress-bar-card" style="margin-top:8px"><div class="progress-bar-fill" style="width:${Math.min(100,(ep.watch_progress/(ep.duration||1))*100)}%"></div></div>` : ''}
-        ${ep.watched ? '<div style="font-size:12px;color:var(--green);margin-top:6px">✓ Watched</div>' : ''}
+    <div class="episode-wrap">
+      <div class="episode-item" onclick="playMedia('episode', ${ep.id}, '${safeLabel}', ${!!ep.needs_remux}, ${ep.duration||0}, ${ep.watch_progress > 60 && !ep.watched ? ep.watch_progress : 0}, 0, 0, -1, false, ${window._currentShowId||0})">
+        ${ep.still_path 
+          ? `<img class="episode-still" src="${ep.still_path}" alt="" onerror="${errorFallback}">` 
+          : `<div class="episode-still-placeholder"><i class="fa-solid fa-play"></i></div>`
+        }
+        <div class="ep-info">
+          <div class="ep-num">S${String(ep.season).padStart(2,'0')}E${String(ep.episode).padStart(2,'0')}${ep.air_date?' · '+ep.air_date:''}</div>
+          <div class="ep-title" data-ep-title="${ep.id}">${escHtml(ep.title || `Episode ${ep.episode}`)}</div>
+          ${ep.overview ? `<div class="ep-overview">${escHtml(ep.overview)}</div>` : ''}
+          ${ep.watch_progress > 0 && !ep.watched ? `<div class="progress-bar-card" style="margin-top:8px"><div class="progress-bar-fill" style="width:${Math.min(100,(ep.watch_progress/(ep.duration||1))*100)}%"></div></div>` : ''}
+          ${ep.watched ? '<div style="font-size:12px;color:var(--green);margin-top:6px"><i class="fa-solid fa-check"></i> Watched</div>' : ''}
+        </div>
+        ${ep.resolution ? `<span class="chip" style="flex-shrink:0">${ep.resolution}</span>` : ''}
+        <button class="ep-edit-btn" title="Edit episode" onclick="event.stopPropagation();openEpEditForm(${ep.id})"><i class="fa-solid fa-pen"></i></button>
       </div>
-      ${ep.resolution ? `<span class="chip" style="flex-shrink:0">${ep.resolution}</span>` : ''}
+      <div class="ep-edit-form" id="epform-${ep.id}" data-epid="${ep.id}">
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">Title</label>
+          <input class="form-input" id="eptitle-${ep.id}" value="${escHtml(ep.title||'')}">
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">Overview</label>
+          <textarea class="form-input" id="epoverview-${ep.id}" rows="3" style="resize:vertical">${escHtml(ep.overview||'')}</textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="saveEpisodeEdit(${ep.id})">💾 Save</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('epform-${ep.id}').classList.remove('open')">Cancel</button>
+        </div>
+      </div>
     </div>`;
   }).join('');
 }
@@ -2758,11 +2842,11 @@ async function runTmdbSearch() {
   el.innerHTML = results.map(r => `
     <div class="tmdb-result" onclick="applyTmdbMatch(${r.id})">
       ${r.poster_path
-        ? `<img class="tmdb-result-poster" src="${r.poster_path}" alt="" onerror="this.outerHTML='<div class=tmdb-result-placeholder>🎬</div>'">`
-        : `<div class="tmdb-result-placeholder">${type==='tv'?'📺':'🎬'}</div>`}
+        ? `<img class="tmdb-result-poster" src="${r.poster_path}" alt="" onerror="this.outerHTML='<div class=tmdb-result-placeholder><i class="fa-solid fa-film"></i></div>'">`
+        : `<div class="tmdb-result-placeholder">${type==='tv'?'<i class="fa-solid fa-tv"></i>':'<i class="fa-solid fa-film"></i>'}</div>`}
       <div style="flex:1">
         <div class="tmdb-result-title">${escHtml(r.title||'')}</div>
-        <div class="tmdb-result-meta">${[r.year, r.rating?'⭐ '+r.rating.toFixed(1):null].filter(Boolean).join(' · ')}</div>
+        <div class="tmdb-result-meta">${[r.year, r.rating?'<i class="fa-solid fa-star" style="color: rgb(255, 212, 59);"></i> '+r.rating.toFixed(1):null].filter(Boolean).join(' · ')}</div>
         ${r.overview ? `<div class="tmdb-result-overview">${escHtml(r.overview)}</div>` : ''}
       </div>
     </div>`).join('');
@@ -2785,6 +2869,257 @@ async function applyTmdbMatch(tmdbId) {
   } else {
     showToastMsg('✗ Could not apply match', true);
     el.innerHTML = '<div style="color:var(--red);text-align:center;padding:16px">Failed to apply match. Check your TMDB API key in Settings.</div>';
+  }
+}
+
+// ─── Meta Edit Panel (Details + Artwork) ──────────────────────────────────
+let _metaEditType = null;
+let _metaEditId   = null;
+let _metaEditData = null;
+let _artworkSelected = { poster: null, backdrop: null };
+
+async function openMetaEditPanel(type, id) {
+  _metaEditType = type;
+  _metaEditId   = id;
+  _artworkSelected = { poster: null, backdrop: null };
+
+  document.getElementById('edit-panel')?.remove();
+
+  const data = await api(type === 'movie' ? `/api/movies/${id}` : `/api/shows/${id}`);
+  if (!data) return;
+  _metaEditData = data;
+
+  const panel = document.createElement('div');
+  panel.className = 'edit-panel';
+  panel.id = 'edit-panel';
+
+  const detailsHtml = type === 'movie' ? `
+    <div class="form-group"><label class="form-label">Title</label>
+      <input class="form-input" id="ef-title" value="${escHtml(data.title||'')}"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label class="form-label">Year</label>
+        <input class="form-input" id="ef-year" type="number" value="${data.year||''}"></div>
+      <div class="form-group"><label class="form-label">Runtime (min)</label>
+        <input class="form-input" id="ef-runtime" type="number" value="${data.runtime||''}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label class="form-label">Rating (0–10)</label>
+        <input class="form-input" id="ef-rating" type="number" step="0.1" min="0" max="10" value="${data.rating||''}"></div>
+      <div class="form-group"><label class="form-label">Genres (comma-separated)</label>
+        <input class="form-input" id="ef-genres" value="${escHtml(data.genres||'')}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Tagline</label>
+      <input class="form-input" id="ef-tagline" value="${escHtml(data.tagline||'')}"></div>
+    <div class="form-group"><label class="form-label">Overview</label>
+      <textarea class="form-input" id="ef-overview" rows="4" style="resize:vertical">${escHtml(data.overview||'')}</textarea></div>
+    <button class="btn btn-primary btn-sm" onclick="saveMetaEdit()">💾 Save Changes</button>` : `
+    <div class="form-group"><label class="form-label">Title</label>
+      <input class="form-input" id="ef-title" value="${escHtml(data.title||'')}"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label class="form-label">Rating (0–10)</label>
+        <input class="form-input" id="ef-rating" type="number" step="0.1" min="0" max="10" value="${data.rating||''}"></div>
+      <div class="form-group"><label class="form-label">First Air Date</label>
+        <input class="form-input" id="ef-airdate" type="date" value="${data.first_air_date||''}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label class="form-label">Status</label>
+        <input class="form-input" id="ef-status" value="${escHtml(data.status||'')}"></div>
+      <div class="form-group"><label class="form-label">Genres (comma-separated)</label>
+        <input class="form-input" id="ef-genres" value="${escHtml(data.genres||'')}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Overview</label>
+      <textarea class="form-input" id="ef-overview" rows="4" style="resize:vertical">${escHtml(data.overview||'')}</textarea></div>
+    <button class="btn btn-primary btn-sm" onclick="saveMetaEdit()">💾 Save Changes</button>`;
+
+  panel.innerHTML = `
+    <h4>✏ Edit ${type === 'movie' ? 'Movie' : 'Show'} Metadata</h4>
+    <div class="edit-tabs">
+      <div class="edit-tab active" onclick="showEditTab('details', this)">📝 Details</div>
+      <div class="edit-tab" onclick="showEditTab('artwork', this)">🖼 Artwork</div>
+    </div>
+    <div class="edit-tab-content active" id="etab-details">${detailsHtml}</div>
+    <div class="edit-tab-content" id="etab-artwork">
+      <div id="artwork-loading" style="color:var(--text3);font-size:13px;text-align:center;padding:20px">Loading artwork from TMDB...</div>
+      <div id="artwork-body" style="display:none">
+        <div class="artwork-section-title">Poster</div>
+        <div class="artwork-grid" id="artwork-posters"></div>
+        <div class="artwork-section-title">Backdrop</div>
+        <div class="artwork-grid backdrops" id="artwork-backdrops"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveArtwork()" style="margin-top:8px">💾 Apply Selected Artwork</button>
+      </div>
+    </div>`;
+
+  const modalBody = document.querySelector('.modal-body');
+  if (modalBody) {
+    modalBody.insertBefore(panel, modalBody.firstChild);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Load artwork asynchronously — panel renders immediately without blocking
+  loadArtworkGrid();
+}
+
+function showEditTab(tab, el) {
+  document.querySelectorAll('#edit-panel .edit-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#edit-panel .edit-tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`etab-${tab}`)?.classList.add('active');
+}
+
+async function saveMetaEdit() {
+  const body = {};
+  const titleVal    = document.getElementById('ef-title')?.value.trim();
+  const overviewVal = document.getElementById('ef-overview')?.value.trim();
+  const ratingVal   = document.getElementById('ef-rating')?.value;
+  const genresVal   = document.getElementById('ef-genres')?.value.trim();
+
+  if (titleVal    !== undefined) body.title    = titleVal;
+  if (overviewVal !== undefined) body.overview = overviewVal;
+  if (ratingVal)                 body.rating   = parseFloat(ratingVal);
+  if (genresVal   !== undefined) body.genres   = genresVal;
+
+  if (_metaEditType === 'movie') {
+    const yearVal    = document.getElementById('ef-year')?.value;
+    const runtimeVal = document.getElementById('ef-runtime')?.value;
+    const taglineVal = document.getElementById('ef-tagline')?.value.trim();
+    if (yearVal)              body.year    = parseInt(yearVal);
+    if (runtimeVal)           body.runtime = parseInt(runtimeVal);
+    if (taglineVal !== undefined) body.tagline = taglineVal;
+  } else {
+    const statusVal  = document.getElementById('ef-status')?.value.trim();
+    const airdateVal = document.getElementById('ef-airdate')?.value;
+    if (statusVal  !== undefined) body.status         = statusVal;
+    if (airdateVal !== undefined) body.first_air_date = airdateVal;
+  }
+
+  const endpoint = _metaEditType === 'movie'
+    ? `/api/movies/${_metaEditId}/edit`
+    : `/api/shows/${_metaEditId}/edit`;
+
+  const result = await api(endpoint, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (result) {
+    showToastMsg('✓ Metadata saved!');
+    closeMediaModal();
+    setTimeout(() => openMedia(_metaEditType, _metaEditId), 150);
+  } else {
+    showToastMsg('✗ Save failed', true);
+  }
+}
+
+async function loadArtworkGrid() {
+  const tmdbId = _metaEditData?.tmdb_id;
+  if (!tmdbId) {
+    const el = document.getElementById('artwork-loading');
+    if (el) el.textContent = 'No TMDB ID — Sorry feature not yet complete';
+    return;
+  }
+
+  const apiType = _metaEditType === 'movie' ? 'movie' : 'tv';
+  const images  = await api(`/api/tmdb/images?type=${apiType}&tmdb_id=${tmdbId}`);
+  const loadEl  = document.getElementById('artwork-loading');
+  const bodyEl  = document.getElementById('artwork-body');
+
+  if (!images || (!images.posters?.length && !images.backdrops?.length)) {
+    if (loadEl) loadEl.textContent = 'No artwork found on TMDB.';
+    return;
+  }
+  if (loadEl) loadEl.style.display = 'none';
+  if (bodyEl) bodyEl.style.display = 'block';
+
+  const currentPoster   = _metaEditData.poster_path   || '';
+  const currentBackdrop = _metaEditData.backdrop_path || '';
+
+  const posterGrid   = document.getElementById('artwork-posters');
+  const backdropGrid = document.getElementById('artwork-backdrops');
+
+  if (posterGrid && images.posters) {
+    posterGrid.innerHTML = images.posters.map(img => {
+      const safePath = img.tmdb_path.replace(/\//g, '_');
+      const isCurrent = currentPoster.includes(safePath.replace(/^_/, ''));
+      return `<div class="artwork-thumb${isCurrent ? ' selected' : ''}" onclick="selectArtwork('poster','${img.tmdb_path}',this)">
+        <img src="${img.url}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
+      </div>`;
+    }).join('');
+  }
+
+  if (backdropGrid && images.backdrops) {
+    backdropGrid.innerHTML = images.backdrops.map(img => {
+      const safePath = img.tmdb_path.replace(/\//g, '_');
+      const isCurrent = currentBackdrop.includes(safePath.replace(/^_/, ''));
+      return `<div class="artwork-thumb${isCurrent ? ' selected' : ''}" onclick="selectArtwork('backdrop','${img.tmdb_path}',this)">
+        <img src="${img.url}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
+      </div>`;
+    }).join('');
+  }
+}
+
+function selectArtwork(type, tmdbPath, el) {
+  // Deselect others in the same grid section
+  el.closest('.artwork-grid').querySelectorAll('.artwork-thumb').forEach(t => t.classList.remove('selected'));
+  el.classList.add('selected');
+  _artworkSelected[type] = tmdbPath;
+}
+
+async function saveArtwork() {
+  if (!_artworkSelected.poster && !_artworkSelected.backdrop) {
+    showToastMsg('Select a poster or backdrop first', true);
+    return;
+  }
+  const endpoint = _metaEditType === 'movie'
+    ? `/api/movies/${_metaEditId}/artwork`
+    : `/api/shows/${_metaEditId}/artwork`;
+
+  let saved = false;
+  for (const [imgType, tmdbPath] of Object.entries(_artworkSelected)) {
+    if (!tmdbPath) continue;
+    const r = await api(endpoint, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_type: imgType, tmdb_path: tmdbPath }),
+    });
+    if (r) saved = true;
+  }
+
+  if (saved) {
+    showToastMsg('✓ Artwork updated!');
+    closeMediaModal();
+    setTimeout(() => openMedia(_metaEditType, _metaEditId), 150);
+  } else {
+    showToastMsg('✗ Artwork update failed', true);
+  }
+}
+
+// ─── Episode inline edit ───────────────────────────────────────────────────
+
+function openEpEditForm(epId) {
+  // Close any other open forms first
+  document.querySelectorAll('.ep-edit-form.open').forEach(f => {
+    if (f.dataset.epid !== String(epId)) f.classList.remove('open');
+  });
+  document.getElementById(`epform-${epId}`)?.classList.toggle('open');
+}
+
+async function saveEpisodeEdit(epId) {
+  const title    = document.getElementById(`eptitle-${epId}`)?.value.trim();
+  const overview = document.getElementById(`epoverview-${epId}`)?.value.trim();
+  const r = await api(`/api/episodes/${epId}/edit`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, overview }),
+  });
+  if (r?.ok) {
+    showToastMsg('✓ Episode updated!');
+    document.getElementById(`epform-${epId}`)?.classList.remove('open');
+    // Update rendered title in-place without re-rendering the whole list
+    const titleEl = document.querySelector(`[data-ep-title="${epId}"]`);
+    if (titleEl && title) titleEl.textContent = title;
+  } else {
+    showToastMsg('✗ Save failed', true);
   }
 }
 
