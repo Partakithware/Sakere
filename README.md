@@ -6,6 +6,8 @@ A modern, self-hosted media center built with Python, FastAPI, and a sleek dark 
 >Update 2.3 out, several updates. Download the repo and make sure first thing to extract the /frontend/fonts.zip into the frontend directory where it sits.
 >Then you can delete the fonts.zip and you should have a /fonts/ directory and index.html
 
+Working on Update 2.4: Currently adding option to edit metadata/posters/backdrops!
+
 
 ## Features
 - 🎬 Movies & 📺 TV Shows library with full metadata from TMDB
