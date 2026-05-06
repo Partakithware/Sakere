@@ -112,7 +112,7 @@ async def stream_subtitles(file_path: str, sub_idx: int) -> StreamingResponse:
     def generate():
         try:
             while True:
-                chunk = process.stdout.read(65536)
+                chunk = process.stdout.read(524288)
                 if not chunk:
                     break
                 yield chunk
@@ -241,8 +241,11 @@ async def stream_remux(file_path: str, seek: float = 0,
 
     cmd += [
         "-c:a", "aac", "-b:a", audio_bitrate, "-ac", "2",
+        "-af", "aresample=async=1:min_hard_comp=0.1",   # Fix 2: audio/video drift correction
         "-f", "mp4",
-        "-movflags", "frag_keyframe+empty_moov+faststart",
+        "-movflags", "empty_moov+faststart+default_base_moof",
+        "-frag_duration", "500000",   # Fix 1: flush every 500ms regardless of keyframes
+        "-flush_packets", "1",        # Fix 3: don't let OS buffer hold chunks back
         "pipe:1",
     ]
 
@@ -251,7 +254,7 @@ async def stream_remux(file_path: str, seek: float = 0,
     def generate():
         try:
             while True:
-                chunk = process.stdout.read(65536)
+                chunk = process.stdout.read(524288)
                 if not chunk:
                     break
                 yield chunk

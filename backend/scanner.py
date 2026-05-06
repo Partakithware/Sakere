@@ -200,8 +200,8 @@ async def get_or_create_show(title: str, year: int, db: Session) -> TVShow:
         title=tmdb_title,
         tmdb_id=tmdb_id,
         overview=tmdb_show.get("overview")      if tmdb_show else None,
-        poster_path=matcher.poster_url(tmdb_show.get("poster_path"))      if tmdb_show else None,
-        backdrop_path=matcher.backdrop_url(tmdb_show.get("backdrop_path")) if tmdb_show else None,
+        poster_path=await matcher.poster_url_cached(tmdb_show.get("poster_path"))      if tmdb_show else None,
+        backdrop_path=await matcher.backdrop_url_cached(tmdb_show.get("backdrop_path")) if tmdb_show else None,
         rating=tmdb_show.get("vote_average")    if tmdb_show else None,
         genres=", ".join(g["name"] for g in tmdb_show.get("genres", [])) if tmdb_show else None,
         first_air_date=tmdb_show.get("first_air_date") if tmdb_show else None,
@@ -257,7 +257,7 @@ async def scan_episode(file_path: str, db: Session, executor: ThreadPoolExecutor
         episode=episode_num,
         tmdb_id=ep_tmdb.get("id")      if ep_tmdb else None,
         overview=ep_tmdb.get("overview") if ep_tmdb else None,
-        still_path=matcher.poster_url(ep_tmdb.get("still_path"), "w300") if ep_tmdb else None,
+        still_path=await matcher.poster_url_cached(ep_tmdb.get("still_path"), "w300") if ep_tmdb else None,
         air_date=ep_tmdb.get("air_date") if ep_tmdb else None,
         runtime=ep_tmdb.get("runtime")   if ep_tmdb else None,
         duration=file_meta["duration"],
@@ -294,8 +294,8 @@ async def scan_movie(file_path: str, db: Session, executor: ThreadPoolExecutor =
         tmdb_id=tmdb_data.get("id")       if tmdb_data else None,
         imdb_id=tmdb_data.get("imdb_id")  if tmdb_data else None,
         overview=tmdb_data.get("overview") if tmdb_data else None,
-        poster_path=matcher.poster_url(tmdb_data.get("poster_path"))      if tmdb_data else None,
-        backdrop_path=matcher.backdrop_url(tmdb_data.get("backdrop_path")) if tmdb_data else None,
+        poster_path=await matcher.poster_url_cached(tmdb_data.get("poster_path"))      if tmdb_data else None,
+        backdrop_path=await matcher.backdrop_url_cached(tmdb_data.get("backdrop_path")) if tmdb_data else None,
         rating=tmdb_data.get("vote_average") if tmdb_data else None,
         runtime=tmdb_data.get("runtime")     if tmdb_data else None,
         genres=", ".join(g["name"] for g in tmdb_data.get("genres", [])) if tmdb_data else None,
@@ -322,8 +322,39 @@ async def scan_directory(path: str, media_type: str, db: Session, progress_callb
     _season_cache = {}
 
     files   = find_video_files(path)
-    results = {"scanned": 0, "movies": 0, "episodes": 0, "errors": 0, "total": len(files)}
+    # Added "removed" tracking to our results dictionary
+    results = {"scanned": 0, "movies": 0, "episodes": 0, "errors": 0, "removed": 0, "total": len(files)}
 
+    # ─── 1. PRUNING PHASE (Clean up missing files) ──────────────────────────────
+    
+    # Prune missing Movies
+    if media_type in ("auto", "movies"):
+        movies = db.query(Movie).all()
+        for m in movies:
+            # If the DB path starts with our current scan directory and doesn't exist on disk
+            if m.file_path.startswith(path) and not os.path.exists(m.file_path):
+                db.delete(m)
+                results["removed"] += 1
+        db.commit()
+
+    # Prune missing Episodes & Orphaned Shows
+    if media_type in ("auto", "shows"):
+        episodes = db.query(Episode).all()
+        for ep in episodes:
+            if ep.file_path.startswith(path) and not os.path.exists(ep.file_path):
+                db.delete(ep)
+                results["removed"] += 1
+        db.commit()
+
+        # Find and delete orphaned TV Shows (shows with no episodes left)
+        # ~TVShow.episodes.any() returns shows where the episode list is empty
+        orphaned_shows = db.query(TVShow).filter(~TVShow.episodes.any()).all()
+        for show in orphaned_shows:
+            db.delete(show)
+        db.commit()
+
+    # ─── 2. SCANNING PHASE (Process new files) ──────────────────────────────────
+    
     # Thread pool for blocking mediainfo calls (4 workers)
     with ThreadPoolExecutor(max_workers=4) as executor:
         for i, file_path in enumerate(files):
@@ -340,6 +371,8 @@ async def scan_directory(path: str, media_type: str, db: Session, progress_callb
                     ))
                 )
 
+                # The scan_movie and scan_episode functions already check:
+                # `if existing: return existing` so it skips immediately if it's already in the DB.
                 if is_episode and media_type != "movies":
                     await scan_episode(file_path, db, executor)
                     results["episodes"] += 1

@@ -8,6 +8,8 @@ TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 DB_PATH = Path("sakere.db")
 SETTINGS_PATH = Path("settings.json")
 
+IMAGES_DIR = Path(__file__).parent.parent / "images"
+
 VIDEO_EXTENSIONS = {
     ".mkv", ".mp4", ".avi", ".m4v", ".mov", ".wmv",
     ".flv", ".m2ts", ".ts", ".webm", ".mpg", ".mpeg"

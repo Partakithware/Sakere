@@ -1,7 +1,8 @@
 import httpx
 import json
+import asyncio
 from pathlib import Path
-from backend.config import TMDB_BASE_URL, TMDB_IMAGE_BASE, SETTINGS_PATH
+from backend.config import TMDB_BASE_URL, TMDB_IMAGE_BASE, SETTINGS_PATH, IMAGES_DIR
 
 
 def get_api_key() -> str:
@@ -11,17 +12,76 @@ def get_api_key() -> str:
     return ""
 
 
+# ── Local image cache ──────────────────────────────────────────────────────────
+
+async def cache_image(tmdb_path: str, size: str) -> str | None:
+    """
+    Download a TMDB image the first time it is needed and store it locally.
+    Returns the local API serve path  (/api/images/<filename>)  so the
+    database never holds an external URL after the first scan.
+    Falls back to the full TMDB URL if the download fails.
+    """
+    if not tmdb_path:
+        return None
+
+    # Sanitise the TMDB path into a safe flat filename
+    safe = tmdb_path.lstrip("/").replace("/", "_")
+    filename = f"{size}_{safe}"
+    local_path = IMAGES_DIR / filename
+
+    if local_path.exists():
+        return f"/api/images/{filename}"
+
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    url = f"{TMDB_IMAGE_BASE}/{size}{tmdb_path}"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(url)
+            if r.status_code == 200:
+                local_path.write_bytes(r.content)
+                return f"/api/images/{filename}"
+    except Exception as e:
+        print(f"Image cache error ({url}): {e}")
+
+    # Fallback: store the remote URL so the UI still shows something
+    return f"{TMDB_IMAGE_BASE}/{size}{tmdb_path}"
+
+
+async def poster_url_cached(path: str, size: str = "w500") -> str | None:
+    if not path:
+        return None
+    return await cache_image(path, size)
+
+
+async def backdrop_url_cached(path: str, size: str = "w1280") -> str | None:
+    if not path:
+        return None
+    return await cache_image(path, size)
+
+
+# Synchronous helpers — return local path if already cached, else TMDB URL.
+# Used in places where we only need the URL string without an async download.
 def poster_url(path: str, size: str = "w500") -> str | None:
     if not path:
         return None
+    safe = path.lstrip("/").replace("/", "_")
+    local_path = IMAGES_DIR / f"{size}_{safe}"
+    if local_path.exists():
+        return f"/api/images/{size}_{safe}"
     return f"{TMDB_IMAGE_BASE}/{size}{path}"
 
 
 def backdrop_url(path: str, size: str = "w1280") -> str | None:
     if not path:
         return None
+    safe = path.lstrip("/").replace("/", "_")
+    local_path = IMAGES_DIR / f"{size}_{safe}"
+    if local_path.exists():
+        return f"/api/images/{size}_{safe}"
     return f"{TMDB_IMAGE_BASE}/{size}{path}"
 
+
+# ── TMDB search ────────────────────────────────────────────────────────────────
 
 async def search_movie(title: str, year: int = None) -> dict | None:
     api_key = get_api_key()
@@ -38,7 +98,6 @@ async def search_movie(title: str, year: int = None) -> dict | None:
             if not results:
                 return None
             best = results[0]
-            # Get full details
             detail_r = await client.get(
                 f"{TMDB_BASE_URL}/movie/{best['id']}",
                 params={"api_key": api_key, "language": "en-US"},

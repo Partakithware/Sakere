@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import init_db, get_db, Movie, TVShow, Episode, LibraryPath
-from backend.config import SETTINGS_PATH, FRONTEND_DIR
+from backend.config import SETTINGS_PATH, FRONTEND_DIR, IMAGES_DIR
 from backend.stream import stream_video, stream_remux, stream_subtitles, get_media_tracks, needs_remux, ffmpeg_available
 from backend import scanner
 from backend import matcher
@@ -28,6 +28,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Sakere", version="1.0.0", lifespan=lifespan)
+
+
+# Serve everything in /frontend (CSS, JS, fonts, images, etc.)
+# This MUST be mounted before your other routes
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+@app.get("/api/images/{filename}")
+async def serve_image(filename: str):
+    image_path = IMAGES_DIR / filename
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(image_path)
 
 app.add_middleware(
     CORSMiddleware,
@@ -144,6 +156,7 @@ def transcode_settings() -> dict:
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -335,6 +348,31 @@ async def get_show(show_id: int, db: Session = Depends(get_db)):
     return show_to_dict(s, db)
 
 
+@app.delete("/api/movies/{movie_id}")
+async def delete_movie(movie_id: int, db: Session = Depends(get_db)):
+    """Delete a movie from the database."""
+    m = db.query(Movie).filter(Movie.id == movie_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    
+    db.delete(m)
+    db.commit()
+    return {"ok": True, "message": "Movie deleted"}
+
+
+@app.delete("/api/shows/{show_id}")
+async def delete_show(show_id: int, db: Session = Depends(get_db)):
+    """Delete a TV show and all its episodes from the database."""
+    s = db.query(TVShow).filter(TVShow.id == show_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Show not found")
+    
+    # The database model automatically cascades and deletes the associated episodes
+    db.delete(s)
+    db.commit()
+    return {"ok": True, "message": "Show and episodes deleted"}
+
+
 @app.get("/api/episodes/{ep_id}")
 async def get_episode(ep_id: int, db: Session = Depends(get_db)):
     ep = db.query(Episode).filter(Episode.id == ep_id).first()
@@ -484,8 +522,8 @@ async def match_movie(movie_id: int, tmdb_id: int, db: Session = Depends(get_db)
     m.title = data.get("title", m.title)
     m.year = int(data["release_date"][:4]) if data.get("release_date") else m.year
     m.overview = data.get("overview")
-    m.poster_path = matcher.poster_url(data.get("poster_path"))
-    m.backdrop_path = matcher.backdrop_url(data.get("backdrop_path"))
+    m.poster_path = await matcher.poster_url_cached(data.get("poster_path"))
+    m.backdrop_path = await matcher.backdrop_url_cached(data.get("backdrop_path"))
     m.rating = data.get("vote_average")
     m.runtime = data.get("runtime")
     m.genres = ", ".join(g["name"] for g in data.get("genres", []))
@@ -540,7 +578,7 @@ async def match_show(show_id: int, tmdb_id: int, db: Session = Depends(get_db)):
                 if ep_data:
                     ep.title    = ep_data.get("name", ep.title)
                     ep.overview = ep_data.get("overview", ep.overview)
-                    ep.still_path = matcher.poster_url(ep_data.get("still_path"), "w300")
+                    ep.still_path = await matcher.poster_url_cached(ep_data.get("still_path"), "w300")
                     ep.air_date = ep_data.get("air_date", ep.air_date)
                     ep.runtime  = ep_data.get("runtime", ep.runtime)
             except Exception:
@@ -552,8 +590,8 @@ async def match_show(show_id: int, tmdb_id: int, db: Session = Depends(get_db)):
     s.tmdb_id       = data.get("id")
     s.title         = data.get("name", s.title)
     s.overview      = data.get("overview")
-    s.poster_path   = matcher.poster_url(data.get("poster_path"))
-    s.backdrop_path = matcher.backdrop_url(data.get("backdrop_path"))
+    s.poster_path   = await matcher.poster_url_cached(data.get("poster_path"))
+    s.backdrop_path = await matcher.backdrop_url_cached(data.get("backdrop_path"))
     s.rating        = data.get("vote_average")
     s.genres        = ", ".join(g["name"] for g in data.get("genres", []))
     s.first_air_date = data.get("first_air_date")
@@ -567,7 +605,7 @@ async def match_show(show_id: int, tmdb_id: int, db: Session = Depends(get_db)):
             if ep_data:
                 ep.title    = ep_data.get("name", ep.title)
                 ep.overview = ep_data.get("overview", ep.overview)
-                ep.still_path = matcher.poster_url(ep_data.get("still_path"), "w300")
+                ep.still_path = await matcher.poster_url_cached(ep_data.get("still_path"), "w300")
                 ep.air_date = ep_data.get("air_date", ep.air_date)
                 ep.runtime  = ep_data.get("runtime", ep.runtime)
         except Exception:
